@@ -6,7 +6,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>PiPiClaw.Team</AssemblyName>
+    <AssemblyName>NiumaClaw.Team</AssemblyName>
 
     <PublishAot>true</PublishAot>
     <OptimizationPreference>Size</OptimizationPreference>
@@ -52,6 +52,10 @@
 		<EmbeddedResource Include="6.png" />
 		<EmbeddedResource Include="7.png" />
 		<EmbeddedResource Include="8.png" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="index.html" CopyToOutputDirectory="Always" />
 	</ItemGroup>
 
 </Project>

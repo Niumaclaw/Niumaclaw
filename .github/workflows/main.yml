@@ -1,4 +1,4 @@
-name: PiPiClaw.Team AOT Build
+name: NiumaClaw.Team AOT Build
 
 on:
   workflow_dispatch:
@@ -16,19 +16,19 @@ jobs:
       matrix:
         include:
           # === Windows 阵营 ===
-          - { rid: win-x64,   os: windows-latest, ext: zip,    exe: PiPiClaw.Team.exe, use_upx: true }
-          - { rid: win-x86,   os: windows-latest, ext: zip,    exe: PiPiClaw.Team.exe, use_upx: false }
-          - { rid: win-arm64, os: windows-latest, ext: zip,    exe: PiPiClaw.Team.exe, use_upx: false }
+          - { rid: win-x64,   os: windows-latest, ext: zip,    exe: NiumaClaw.Team.exe, use_upx: true }
+          - { rid: win-x86,   os: windows-latest, ext: zip,    exe: NiumaClaw.Team.exe, use_upx: false }
+          - { rid: win-arm64, os: windows-latest, ext: zip,    exe: NiumaClaw.Team.exe, use_upx: false }
 
           # === Linux 阵营 ===
-          - { rid: linux-x64,   os: ubuntu-latest,    ext: tar.gz, exe: PiPiClaw.Team, use_upx: true }
-          - { rid: linux-arm64, os: ubuntu-24.04-arm, ext: tar.gz, exe: PiPiClaw.Team, use_upx: false }
+          - { rid: linux-x64,   os: ubuntu-latest,    ext: tar.gz, exe: NiumaClaw.Team, use_upx: true }
+          - { rid: linux-arm64, os: ubuntu-24.04-arm, ext: tar.gz, exe: NiumaClaw.Team, use_upx: false }
           # 32位 ARM：锁定 ubuntu-22.04
-          - { rid: linux-arm,   os: ubuntu-22.04,     ext: tar.gz, exe: PiPiClaw.Team, use_upx: false }
+          - { rid: linux-arm,   os: ubuntu-22.04,     ext: tar.gz, exe: NiumaClaw.Team, use_upx: false }
 
           # === macOS 阵营 ===
-          - { rid: osx-x64,   os: macos-latest,   ext: tar.gz, exe: PiPiClaw.Team, use_upx: false }
-          - { rid: osx-arm64, os: macos-latest,   ext: tar.gz, exe: PiPiClaw.Team, use_upx: false }
+          - { rid: osx-x64,   os: macos-latest,   ext: tar.gz, exe: NiumaClaw.Team, use_upx: false }
+          - { rid: osx-arm64, os: macos-latest,   ext: tar.gz, exe: NiumaClaw.Team, use_upx: false }
 
     steps:
       - name: Checkout Code
@@ -100,17 +100,17 @@ jobs:
           fi
 
           if [ "${{ matrix.ext }}" == "zip" ]; then
-            7z a -tzip -mx=9 ../PiPiClaw.Team_${{ matrix.rid }}.zip *
+            7z a -tzip -mx=9 ../NiumaClaw.Team_${{ matrix.rid }}.zip *
           else
-            tar cf - * | 7z a -si -tgzip -mx=9 ../PiPiClaw.Team_${{ matrix.rid }}.tar.gz
+            tar cf - * | 7z a -si -tgzip -mx=9 ../NiumaClaw.Team_${{ matrix.rid }}.tar.gz
           fi
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: "PiPiClaw.Team Latest Build"
-          files: PiPiClaw.Team_${{ matrix.rid }}.${{ matrix.ext }}
+          name: "NiumaClaw.Team Latest Build"
+          files: NiumaClaw.Team_${{ matrix.rid }}.${{ matrix.ext }}
           make_latest: true
           prerelease: false
           append_body: true

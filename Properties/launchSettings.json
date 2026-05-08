@@ -1,6 +1,6 @@
 {
   "profiles": {
-    "PiPiClaw.Team": {
+    "NiumaClaw.Team": {
       "commandName": "Project",
       "launchBrowser": true,
       "environmentVariables": {

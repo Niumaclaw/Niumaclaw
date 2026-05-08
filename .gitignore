@@ -33,6 +33,15 @@ bld/
 *.user
 *.userosscache
 *.sln.docstates
+*.log
+*.err
+*.bak
+*.bak_*
+*.syntaxfix.bak
+
+# Local runtime state
+team-runtime*.log
+team-runtime*.err.log
 
 # Mono Auto Generated Files
 mono_crash.*

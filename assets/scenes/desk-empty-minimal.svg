@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 400" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f7f2e9"/>
+      <stop offset="100%" stop-color="#ebe1d2"/>
+    </linearGradient>
+    <linearGradient id="desk" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#d2ad7f"/>
+      <stop offset="100%" stop-color="#ae7a53"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="400" rx="28" fill="url(#bg)"/>
+  <path d="M0 284C54 262 111 255 160 255C209 255 266 262 320 284V400H0V284Z" fill="#f1e8db"/>
+  <rect x="48" y="176" width="224" height="96" rx="22" fill="url(#desk)"/>
+  <rect x="62" y="190" width="196" height="12" rx="6" fill="#f6efe5" opacity="0.85"/>
+  <rect x="74" y="202" width="68" height="50" rx="8" fill="#fcfbf7" stroke="#e0d3c2"/>
+  <rect x="80" y="208" width="56" height="34" rx="6" fill="#dfe7ea"/>
+  <path d="M88 218h36" stroke="#99a7b6" stroke-width="4" stroke-linecap="round"/>
+  <path d="M88 228h24" stroke="#b8c2cb" stroke-width="4" stroke-linecap="round"/>
+  <rect x="154" y="204" width="64" height="42" rx="10" fill="#f7f5ef"/>
+  <path d="M164 212h28" stroke="#cbb69e" stroke-width="4" stroke-linecap="round"/>
+  <path d="M164 223h36" stroke="#e0d2c2" stroke-width="4" stroke-linecap="round"/>
+  <rect x="226" y="214" width="20" height="18" rx="6" fill="#f8efe3" stroke="#dbc9b5"/>
+  <path d="M230 220h12" stroke="#8f7358" stroke-width="3" stroke-linecap="round"/>
+  <path d="M228 242c-8 7-14 9-23 10" stroke="#8aa56f" stroke-width="3" stroke-linecap="round"/>
+  <path d="M206 249c-2-12 2-22 11-28" stroke="#8aa56f" stroke-width="3" stroke-linecap="round"/>
+  <path d="M196 243c-10 3-20 3-30 0" stroke="#c8b9a6" stroke-width="4" stroke-linecap="round" opacity="0.6"/>
+  <rect x="136" y="230" width="44" height="10" rx="5" fill="#8c6d4d" opacity="0.25"/>
+  <path d="M0 324C44 316 88 311 160 311C232 311 276 316 320 324" stroke="#d3c4b0" stroke-width="3" opacity="0.55"/>
+  <circle cx="58" cy="62" r="34" fill="#fff" opacity="0.28"/>
+  <circle cx="266" cy="74" r="24" fill="#fff" opacity="0.18"/>
+</svg>
