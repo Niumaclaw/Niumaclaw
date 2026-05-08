@@ -18,6 +18,38 @@
 
 ---
 
+![NiumaClaw 主界面预览](docs/screenshots/readme-hero.png)
+
+> 把多个 AI Agent 组织成可分工、可派工、可审批、可追踪、可交付的数字团队。
+
+## 快速启动
+
+```powershell
+git clone https://github.com/Niumaclaw/Niumaclaw.git
+cd Niumaclaw
+dotnet run
+```
+
+启动后打开：
+
+```text
+http://localhost:4050/
+```
+
+## Demo
+
+[观看 30-60 秒演示视频](docs/demo/niumaclaw-demo.webm)
+
+## 参与项目
+
+- 路线图：[ROADMAP.md](ROADMAP.md)
+- 问题反馈：[提交 Bug](https://github.com/Niumaclaw/Niumaclaw/issues/new?template=bug_report.yml)
+- 功能建议：[提交 Feature Request](https://github.com/Niumaclaw/Niumaclaw/issues/new?template=feature_request.yml)
+- 适合新贡献者的小任务：[Good First Issue](https://github.com/Niumaclaw/Niumaclaw/issues/new?template=good_first_issue.yml)
+- 最新发布说明：[RELEASE_NOTES.md](RELEASE_NOTES.md)
+
+---
+
 ## 简介
 
 NiumaClaw 是一个基于 .NET 10 的本地多 Agent 协同工作平台。它把多个 AI Agent 组织成一个可视化团队：成员有工位、有角色、有节点地址、有工作状态，也能接收任务、持续执行、产出报告，并在看板里留下可追踪的任务记录。
@@ -79,6 +111,12 @@ NiumaClaw 是一个基于 .NET 10 的本地多 Agent 协同工作平台。它把
 ---
 
 ## 安装与运行
+
+环境要求：
+
+- .NET 10 SDK
+- Windows 10/11 或兼容 .NET 10 的桌面环境
+- 一个或多个可通过 HTTP 访问的 Agent 节点
 
 ```powershell
 git clone https://github.com/Niumaclaw/Niumaclaw.git

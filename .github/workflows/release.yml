@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish win-x64
+        run: dotnet publish NiumaClaw.Team.csproj -c Release -r win-x64 -p:PublishAot=true -p:StripSymbols=true -p:DebugType=none -o publish/win-x64
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Compress-Archive -Path publish/win-x64/* -DestinationPath NiumaClaw-win-x64.zip -Force
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: NiumaClaw-win-x64.zip
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: false

@@ -1,0 +1,39 @@
+name: Feature Request
+description: 提出新功能、改进方向或集成建议。
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你遇到的问题或场景
+      description: 这个功能想解决什么真实使用问题？
+      placeholder: 例如：我希望 NiumaClaw 能一键导入本地 Agent 节点。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 你希望的解决方案
+      description: 描述理想的交互、配置或 API。
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 相关模块
+      options:
+        - README / 文档
+        - 启动和安装
+        - Agent 节点协议
+        - 项目看板
+        - 周期任务
+        - SOP / 治理
+        - UI / 交互
+        - 构建 / Release
+        - 其他
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 替代方案或参考项目
+      description: 如果你见过类似实现，可以贴链接。
