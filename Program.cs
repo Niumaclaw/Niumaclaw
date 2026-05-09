@@ -255,6 +255,10 @@ public class ProjectTask
     [JsonPropertyName("review_required")] public bool ReviewRequired { get; set; }
     [JsonPropertyName("comments")] public List<TaskComment> Comments { get; set; } = [];
     [JsonPropertyName("context_summary")] public string? ContextSummary { get; set; }
+    [JsonPropertyName("phase")] public string? Phase { get; set; }
+    [JsonPropertyName("depends_on")] public List<string> DependsOn { get; set; } = [];
+    [JsonPropertyName("deliverable")] public string? Deliverable { get; set; }
+    [JsonPropertyName("gate")] public string? Gate { get; set; }
 }
 
 public class ProjectBoard
@@ -398,9 +402,137 @@ class Program
         return _config.Projects.FirstOrDefault(project => project.Tasks.Any(task => string.Equals(task.Id, taskId, StringComparison.OrdinalIgnoreCase)));
     }
 
+    private static ProjectBoard? FindProjectContainingTask(ProjectTask task)
+    {
+        if (task is null) return null;
+        return _config.Projects.FirstOrDefault(project => project.Tasks.Any(candidate => ReferenceEquals(candidate, task)))
+            ?? FindProjectContainingTask(task.Id);
+    }
+
     private static void TouchTask(ProjectTask task)
     {
         task.UpdateTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+    }
+
+    private static void NormalizeProjectTaskForSave(ProjectTask task, ProjectBoard board)
+    {
+        if (task is null) return;
+        if (string.IsNullOrWhiteSpace(task.Id)) task.Id = Guid.NewGuid().ToString("N").Substring(0, 8);
+        task.DependsOn ??= [];
+        task.DependsOn = task.DependsOn.Select(dep => (dep ?? string.Empty).Trim()).Where(dep => dep.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (string.IsNullOrWhiteSpace(task.Assignee)) task.Assignee = "待认领";
+        var normalized = NormalizeTaskStatus(task.Status);
+        task.Status = normalized.Length > 0 ? normalized : "todo";
+        if (task.DependsOn.Count > 0 && task.Status == "todo")
+        {
+            task.Status = "backlog";
+            task.BlockedReason ??= "等待前置阶段完成";
+        }
+        if (string.IsNullOrWhiteSpace(task.GoalId)) task.GoalId = board.GoalId;
+        if (string.IsNullOrWhiteSpace(task.ContextSummary)) task.ContextSummary = board.ContextSummary ?? board.ProjectGoal;
+        TouchTask(task);
+    }
+
+    private static int UnlockReadyDependentTasks(ProjectTask completedTask, List<ProjectTask>? unlockedTasks = null)
+    {
+        var project = FindProjectContainingTask(completedTask);
+        if (project is null) return 0;
+
+        var doneIds = project.Tasks
+            .Where(task => string.Equals(NormalizeTaskStatus(task.Status), "done", StringComparison.OrdinalIgnoreCase))
+            .Select(task => task.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var unlocked = 0;
+
+        foreach (var task in project.Tasks)
+        {
+            if (task is null || string.Equals(task.Id, completedTask.Id, StringComparison.OrdinalIgnoreCase)) continue;
+            task.DependsOn ??= [];
+            if (task.DependsOn.Count == 0 || !task.DependsOn.Any(dep => string.Equals(dep, completedTask.Id, StringComparison.OrdinalIgnoreCase))) continue;
+            var status = NormalizeTaskStatus(task.Status);
+            if (status is "done" or "in_progress" or "in_review" or "cancelled") continue;
+            if (!task.DependsOn.All(dep => doneIds.Contains(dep))) continue;
+
+            task.Status = "todo";
+            task.BlockedReason = null;
+            task.Comments ??= [];
+            task.Comments.Add(new TaskComment
+            {
+                Author = "system",
+                Content = $"前置任务《{completedTask.Title}》已完成，当前阶段已解锁，可开始执行。",
+                Timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+            });
+            TouchTask(task);
+            unlockedTasks?.Add(task);
+            unlocked++;
+        }
+
+        return unlocked;
+    }
+
+    private static bool AreTaskDependenciesSatisfied(ProjectTask task, out string missingTitles)
+    {
+        missingTitles = string.Empty;
+        task.DependsOn ??= [];
+        if (task.DependsOn.Count == 0) return true;
+        var project = FindProjectContainingTask(task);
+        if (project is null) return false;
+
+        var missing = task.DependsOn
+            .Select(dep => project.Tasks.FirstOrDefault(candidate => string.Equals(candidate.Id, dep, StringComparison.OrdinalIgnoreCase)))
+            .Where(depTask => depTask is not null && NormalizeTaskStatus(depTask.Status) != "done")
+            .Select(depTask => depTask!.Title)
+            .Where(title => !string.IsNullOrWhiteSpace(title))
+            .ToList();
+        missingTitles = string.Join("、", missing);
+        return missing.Count == 0;
+    }
+
+    private static async Task DispatchReadyBoardTasksAsync(ProjectBoard project, IReadOnlyList<ProjectTask> tasks, string currentTeamUrl)
+    {
+        var readyTasks = tasks
+            .Where(task => task is not null
+                && !string.IsNullOrWhiteSpace(task.Id)
+                && !string.IsNullOrWhiteSpace(task.Assignee)
+                && NormalizeTaskStatus(task.Status) == "todo")
+            .ToList();
+        if (readyTasks.Count == 0) return;
+
+        var taskJsonLines = string.Join(",\n", readyTasks.Select(task =>
+            "  {\n"
+            + $"    \"project_name\": {JsonSerializer.Serialize(project.ProjectName, AppJsonContext.Default.String)},\n"
+            + $"    \"id\": {JsonSerializer.Serialize(task.Id, AppJsonContext.Default.String)},\n"
+            + $"    \"title\": {JsonSerializer.Serialize(string.Join("\n", new[]
+            {
+                $"项目：{project.ProjectName}",
+                $"阶段：{task.Phase}",
+                $"任务：{task.Title}",
+                string.IsNullOrWhiteSpace(task.Deliverable) ? string.Empty : $"交付物：{task.Deliverable}",
+                string.IsNullOrWhiteSpace(task.Gate) ? string.Empty : $"完成条件：{task.Gate}",
+                "请直接产出文件或可验证结果，完成后提交执行总结。"
+            }.Where(line => !string.IsNullOrWhiteSpace(line))), AppJsonContext.Default.String)},\n"
+            + $"    \"assignee\": {JsonSerializer.Serialize(task.Assignee, AppJsonContext.Default.String)},\n"
+            + $"    \"phase\": {JsonSerializer.Serialize(task.Phase, AppJsonContext.Default.String)},\n"
+            + $"    \"deliverable\": {JsonSerializer.Serialize(task.Deliverable, AppJsonContext.Default.String)},\n"
+            + $"    \"gate\": {JsonSerializer.Serialize(task.Gate, AppJsonContext.Default.String)}\n"
+            + "  }"));
+
+        var dispatchRequest = new ChatRequest
+        {
+            message = "请执行下面的看板任务 JSON 数组，只派发这些已解锁阶段：\n[\n" + taskJsonLines + "\n]",
+            modelIndex = _config.PeerNodes.TryGetValue("ceo", out var ceoInfo) ? ceoInfo.ModelIndex : 0,
+            sop = _config.CompanySOP,
+            caller = "board"
+        };
+
+        var targetUrl = string.IsNullOrEmpty(_config.MasterNodeUrl) ? "http://127.0.0.1:5050" : _config.MasterNodeUrl;
+        var proxyReq = new HttpRequestMessage(HttpMethod.Post, targetUrl.TrimEnd('/') + "/api/agent_task");
+        proxyReq.Headers.Add("X-Username", Uri.EscapeDataString("ceo"));
+        proxyReq.Headers.Add("X-Team-Url", Uri.EscapeDataString(currentTeamUrl));
+        proxyReq.Content = new StringContent(JsonSerializer.Serialize(dispatchRequest, typeof(ChatRequest), AppJsonContext.Default), Encoding.UTF8, "application/json");
+
+        using var proxyRes = await _httpClient.SendAsync(proxyReq);
+        proxyRes.EnsureSuccessStatusCode();
     }
 
     private static void SaveConfigLocked()
@@ -485,7 +617,7 @@ class Program
     {
         if (task is null) return string.Empty;
         var lines = new List<string>();
-        var project = FindProjectContainingTask(task.Id);
+        var project = FindProjectContainingTask(task);
         var projectLineage = project is null ? string.Empty : BuildProjectLineageContext(project);
         if (!string.IsNullOrWhiteSpace(projectLineage))
         {
@@ -1841,6 +1973,15 @@ Console.WriteLine($"[牛马Claw Team] 服务已启动：{url}");
                         return;
                     }
 
+                    if (!AreTaskDependenciesSatisfied(task, out var missingDependencyTitles))
+                    {
+                        res.StatusCode = 409;
+                        res.ContentType = "application/json; charset=utf-8";
+                        var dependencyJson = $"{{\"status\":\"error\",\"message\":\"前置阶段未完成，暂不能领取该任务。\",\"missingDependencies\":{JsonSerializer.Serialize(missingDependencyTitles, AppJsonContext.Default.String)}}}";
+                        res.OutputStream.Write(Encoding.UTF8.GetBytes(dependencyJson));
+                        return;
+                    }
+
                     if (!string.IsNullOrWhiteSpace(task.CheckedOutBy) && !string.Equals(task.CheckedOutBy, worker, StringComparison.OrdinalIgnoreCase))
                     {
                         res.StatusCode = 409;
@@ -1930,6 +2071,10 @@ Console.WriteLine($"[牛马Claw Team] 服务已启动：{url}");
                         task.CheckedOutAt = null;
                     }
                     TouchTask(task);
+                    if (normalizedStatus == "done")
+                    {
+                        UnlockReadyDependentTasks(task);
+                    }
                     SaveConfigLocked();
 
                     res.StatusCode = 200;
@@ -2628,6 +2773,8 @@ JSON 格式如下：
                 try
                 {
                     var newBoard = JsonSerializer.Deserialize(body, typeof(ProjectBoard), AppJsonContext.Default) as ProjectBoard;
+                    ProjectBoard? autoDispatchProject = null;
+                    List<ProjectTask> autoDispatchTasks = [];
                     if (newBoard != null)
                     {
                         lock (_configSyncRoot)
@@ -2635,11 +2782,18 @@ JSON 格式如下：
                             _config.Projects ??= new List<ProjectBoard>();
 
                         
-                        if (newBoard.Tasks != null && newBoard.Tasks.Count == 1 && string.IsNullOrEmpty(newBoard.ProjectName))
+                        if (newBoard.Tasks != null && newBoard.Tasks.Count == 1 && !string.IsNullOrWhiteSpace(newBoard.Tasks[0].Id)
+                            && (string.IsNullOrEmpty(newBoard.ProjectName)
+                                || string.IsNullOrWhiteSpace(newBoard.Tasks[0].Title)
+                                || !string.IsNullOrWhiteSpace(newBoard.Tasks[0].Result)
+                                || !string.IsNullOrWhiteSpace(newBoard.Tasks[0].CheckedOutBy)
+                                || !string.IsNullOrWhiteSpace(newBoard.Tasks[0].BlockedReason)))
                         {
                             var updateTask = newBoard.Tasks[0];
-                            
-                            var existingTask = _config.Projects.SelectMany(p => p.Tasks).FirstOrDefault(t => t.Id == updateTask.Id);
+                            var targetProject = string.IsNullOrWhiteSpace(newBoard.ProjectName)
+                                ? null
+                                : _config.Projects.FirstOrDefault(p => string.Equals(p.ProjectName, newBoard.ProjectName, StringComparison.OrdinalIgnoreCase));
+                            var existingTask = (targetProject?.Tasks ?? _config.Projects.SelectMany(p => p.Tasks)).FirstOrDefault(t => string.Equals(t.Id, updateTask.Id, StringComparison.OrdinalIgnoreCase));
                             if (existingTask != null)
                             {
                                 existingTask.Status = NormalizeTaskStatus(updateTask.Status) is { Length: > 0 } normalized ? normalized : updateTask.Status;
@@ -2648,8 +2802,22 @@ JSON 格式如下：
                                 if (!string.IsNullOrWhiteSpace(updateTask.CheckedOutBy)) existingTask.CheckedOutBy = updateTask.CheckedOutBy;
                                 if (!string.IsNullOrWhiteSpace(updateTask.CheckedOutAt)) existingTask.CheckedOutAt = updateTask.CheckedOutAt;
                                 if (!string.IsNullOrWhiteSpace(updateTask.BlockedReason)) existingTask.BlockedReason = updateTask.BlockedReason;
+                                if (!string.IsNullOrWhiteSpace(updateTask.Phase)) existingTask.Phase = updateTask.Phase;
+                                if (updateTask.DependsOn?.Count > 0) existingTask.DependsOn = updateTask.DependsOn;
+                                if (!string.IsNullOrWhiteSpace(updateTask.Deliverable)) existingTask.Deliverable = updateTask.Deliverable;
+                                if (!string.IsNullOrWhiteSpace(updateTask.Gate)) existingTask.Gate = updateTask.Gate;
                                 existingTask.ReviewRequired = updateTask.ReviewRequired;
                                 if (updateTask.Comments?.Count > 0) existingTask.Comments = updateTask.Comments;
+                                if (NormalizeTaskStatus(existingTask.Status) == "done")
+                                {
+                                    var unlockedTasks = new List<ProjectTask>();
+                                    UnlockReadyDependentTasks(existingTask, unlockedTasks);
+                                    if (unlockedTasks.Count > 0)
+                                    {
+                                        autoDispatchProject = FindProjectContainingTask(existingTask);
+                                        autoDispatchTasks.AddRange(unlockedTasks);
+                                    }
+                                }
                             }
                         }
                         
@@ -2659,6 +2827,13 @@ JSON 格式如下：
                             var existingProject = _config.Projects.FirstOrDefault(p => p.ProjectName == newBoard.ProjectName);
                             if (existingProject == null)
                             {
+                                if (newBoard.Tasks != null)
+                                {
+                                    foreach (var t in newBoard.Tasks)
+                                    {
+                                        NormalizeProjectTaskForSave(t, newBoard);
+                                    }
+                                }
                                 _config.Projects.Add(newBoard);
                             }
                             else
@@ -2670,22 +2845,43 @@ JSON 格式如下：
                                 {
                                     foreach (var t in newBoard.Tasks)
                                     {
-                                        if (string.IsNullOrEmpty(t.Id)) t.Id = Guid.NewGuid().ToString("N").Substring(0, 8);
-                                        TouchTask(t);
-                                        if (string.IsNullOrWhiteSpace(t.Assignee)) t.Assignee = "待认领";
-                                        t.Status = NormalizeTaskStatus(t.Status) is { Length: > 0 } normalized ? normalized : "todo";
-                                        if (string.IsNullOrWhiteSpace(t.GoalId)) t.GoalId = newBoard.GoalId;
-                                        if (string.IsNullOrWhiteSpace(t.ContextSummary)) t.ContextSummary = newBoard.ContextSummary ?? newBoard.ProjectGoal;
+                                        NormalizeProjectTaskForSave(t, newBoard);
 
                                         var existingT = existingProject.Tasks.FirstOrDefault(x => x.Title == t.Title || x.Id == t.Id);
                                         if (existingT == null) existingProject.Tasks.Add(t);
-                                        else existingT.Status = NormalizeTaskStatus(t.Status) is { Length: > 0 } existingNormalized ? existingNormalized : t.Status;
+                                        else
+                                        {
+                                            existingT.Assignee = t.Assignee;
+                                            existingT.Status = NormalizeTaskStatus(t.Status) is { Length: > 0 } existingNormalized ? existingNormalized : t.Status;
+                                            existingT.Phase = t.Phase;
+                                            existingT.DependsOn = t.DependsOn;
+                                            existingT.Deliverable = t.Deliverable;
+                                            existingT.Gate = t.Gate;
+                                            existingT.BlockedReason = t.BlockedReason;
+                                            existingT.ContextSummary = t.ContextSummary;
+                                            TouchTask(existingT);
+                                        }
                                     }
                                 }
                             }
                         }
                             File.WriteAllText(_configPath, JsonSerializer.Serialize(_config, typeof(AppConfig), AppJsonContext.Default), Encoding.UTF8);
                         }
+                    }
+                    if (autoDispatchProject is not null && autoDispatchTasks.Count > 0)
+                    {
+                        var currentTeamUrl = $"http://{req.Url?.Host}:{req.Url?.Port}";
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await DispatchReadyBoardTasksAsync(autoDispatchProject, autoDispatchTasks, currentTeamUrl);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[看板自动派发失败] {ex.Message}");
+                            }
+                        });
                     }
                     res.StatusCode = 200;
                     await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("{\"status\":\"ok\"}"));
@@ -2786,9 +2982,13 @@ JSON 格式如下：
                     + $"项目名称：{foundProject.ProjectName}\n"
                     + "任务清单：\n[\n"
                     + "  {\n"
+                    + $"    \"project_name\": {JsonSerializer.Serialize(foundProject.ProjectName, AppJsonContext.Default.String)},\n"
                     + $"    \"id\": {JsonSerializer.Serialize(foundTask.Id, AppJsonContext.Default.String)},\n"
                     + $"    \"title\": {JsonSerializer.Serialize(foundTask.Title, AppJsonContext.Default.String)},\n"
-                    + $"    \"assignee\": {JsonSerializer.Serialize(foundTask.Assignee, AppJsonContext.Default.String)}\n"
+                    + $"    \"assignee\": {JsonSerializer.Serialize(foundTask.Assignee, AppJsonContext.Default.String)},\n"
+                    + $"    \"phase\": {JsonSerializer.Serialize(foundTask.Phase, AppJsonContext.Default.String)},\n"
+                    + $"    \"deliverable\": {JsonSerializer.Serialize(foundTask.Deliverable, AppJsonContext.Default.String)},\n"
+                    + $"    \"gate\": {JsonSerializer.Serialize(foundTask.Gate, AppJsonContext.Default.String)}\n"
                     + "  }\n"
                     + "]";
 
@@ -2957,9 +3157,13 @@ JSON 格式如下：
                     + $"项目名称：{foundProject.ProjectName}\n"
                     + "任务清单：\n[\n"
                     + "  {\n"
+                    + $"    \"project_name\": {JsonSerializer.Serialize(foundProject.ProjectName, AppJsonContext.Default.String)},\n"
                     + $"    \"id\": {JsonSerializer.Serialize(foundTask.Id, AppJsonContext.Default.String)},\n"
                     + $"    \"title\": {JsonSerializer.Serialize(foundTask.Title, AppJsonContext.Default.String)},\n"
-                    + $"    \"assignee\": {JsonSerializer.Serialize(foundTask.Assignee, AppJsonContext.Default.String)}\n"
+                    + $"    \"assignee\": {JsonSerializer.Serialize(foundTask.Assignee, AppJsonContext.Default.String)},\n"
+                    + $"    \"phase\": {JsonSerializer.Serialize(foundTask.Phase, AppJsonContext.Default.String)},\n"
+                    + $"    \"deliverable\": {JsonSerializer.Serialize(foundTask.Deliverable, AppJsonContext.Default.String)},\n"
+                    + $"    \"gate\": {JsonSerializer.Serialize(foundTask.Gate, AppJsonContext.Default.String)}\n"
                     + "  }\n"
                     + "]";
 
@@ -3161,23 +3365,44 @@ JSON 格式如下：
                 List<ProjectTask> restartableTasks = [];
                 int doingCount = 0;
                 int unassignedCount = 0;
+                int waitingDependencyCount = 0;
 
                 lock (_configSyncRoot)
                 {
                     foundProject = _config.Projects.FirstOrDefault(p => string.Equals(p.ProjectName, projectName, StringComparison.OrdinalIgnoreCase));
                     if (foundProject is not null)
                     {
+                        var doneIds = foundProject.Tasks
+                            .Where(t => NormalizeTaskStatus(t.Status) == "done")
+                            .Select(t => t.Id)
+                            .ToHashSet(StringComparer.OrdinalIgnoreCase);
                         foreach (var task in foundProject.Tasks)
                         {
-                            if (NormalizeTaskStatus(task.Status) == "in_progress")
+                            var normalizedStatus = NormalizeTaskStatus(task.Status);
+                            if (normalizedStatus == "in_progress")
                             {
                                 doingCount++;
+                                continue;
+                            }
+
+                            if (normalizedStatus == "done" || normalizedStatus == "cancelled")
+                            {
                                 continue;
                             }
 
                             if (string.IsNullOrWhiteSpace(task.Assignee))
                             {
                                 unassignedCount++;
+                                continue;
+                            }
+
+                            task.DependsOn ??= [];
+                            if (task.DependsOn.Count > 0 && !task.DependsOn.All(dep => doneIds.Contains(dep)))
+                            {
+                                waitingDependencyCount++;
+                                task.Status = "backlog";
+                                task.BlockedReason ??= "等待前置阶段完成";
+                                TouchTask(task);
                                 continue;
                             }
 
@@ -3188,7 +3413,11 @@ JSON 格式如下：
                                 Assignee = task.Assignee,
                                 Status = task.Status,
                                 UpdateTime = task.UpdateTime,
-                                Result = task.Result
+                                Result = task.Result,
+                                Phase = task.Phase,
+                                DependsOn = task.DependsOn,
+                                Deliverable = task.Deliverable,
+                                Gate = task.Gate
                             });
                         }
 
@@ -3230,6 +3459,10 @@ JSON 格式如下：
                     {
                         message = "这个项目里的任务都还没有负责人，暂时无法重新开始。";
                     }
+                    if (doingCount == 0 && unassignedCount == 0 && waitingDependencyCount > 0)
+                    {
+                        message = "当前没有可立即开始的阶段，请先完成前置阶段。";
+                    }
 
                     res.StatusCode = 400;
                     res.ContentType = "application/json; charset=utf-8";
@@ -3241,9 +3474,13 @@ JSON 格式如下：
                 string targetUrl = string.IsNullOrEmpty(_config.MasterNodeUrl) ? "http://127.0.0.1:5050" : _config.MasterNodeUrl;
                 var taskJsonLines = string.Join(",\n", restartableTasks.Select(t =>
                     "  {\n"
+                    + $"    \"project_name\": {JsonSerializer.Serialize(foundProject.ProjectName, AppJsonContext.Default.String)},\n"
                     + $"    \"id\": {JsonSerializer.Serialize(t.Id, AppJsonContext.Default.String)},\n"
                     + $"    \"title\": {JsonSerializer.Serialize(t.Title, AppJsonContext.Default.String)},\n"
-                    + $"    \"assignee\": {JsonSerializer.Serialize(t.Assignee, AppJsonContext.Default.String)}\n"
+                    + $"    \"assignee\": {JsonSerializer.Serialize(t.Assignee, AppJsonContext.Default.String)},\n"
+                    + $"    \"phase\": {JsonSerializer.Serialize(t.Phase, AppJsonContext.Default.String)},\n"
+                    + $"    \"deliverable\": {JsonSerializer.Serialize(t.Deliverable, AppJsonContext.Default.String)},\n"
+                    + $"    \"gate\": {JsonSerializer.Serialize(t.Gate, AppJsonContext.Default.String)}\n"
                     + "  }"));
                 var restartPrompt =
                     "请把下面这个项目中的任务作为全新一轮执行重新写入系统，并重新交给对应负责人开始执行。\n\n"
@@ -3295,11 +3532,12 @@ JSON 格式如下：
                     }
 
                     var message = $"已重新开始 {restartableTasks.Count} 条任务。";
-                    if (doingCount > 0 || unassignedCount > 0)
+                    if (doingCount > 0 || unassignedCount > 0 || waitingDependencyCount > 0)
                     {
                         var skippedParts = new List<string>();
                         if (doingCount > 0) skippedParts.Add($"{doingCount} 条正在执行中");
                         if (unassignedCount > 0) skippedParts.Add($"{unassignedCount} 条还没有负责人");
+                        if (waitingDependencyCount > 0) skippedParts.Add($"{waitingDependencyCount} 条在等待前置阶段");
                         message += " 未处理：" + string.Join("，", skippedParts) + "。";
                     }
 
@@ -4299,6 +4537,40 @@ JSON 格式如下：
 .task-row:hover { background: #fafafa; }
 .task-title { font-size: 0.9em; color: #334155; flex: 1; padding-right: 15px; font-weight: 500; }
 .task-badges { display: flex; gap: 8px; align-items: center; font-size: 0.75em; flex-shrink: 0; }
+.board-task-card { gap: 10px; }
+.board-task-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; width:100%; }
+.board-task-title-text { padding-right:0; line-height:1.5; min-width:0; }
+.board-task-delivery-grid { display:grid; grid-template-columns:minmax(0, 1.35fr) minmax(240px, 0.8fr); gap:10px; width:100%; }
+.board-task-delivery-card { border:1px solid #dbeafe; border-radius:10px; background:linear-gradient(180deg,#ffffff,#f8fbff); padding:12px; min-width:0; }
+.board-task-delivery-card.summary { border-color:#bbf7d0; background:linear-gradient(180deg,#f0fdf4,#ffffff); }
+.board-task-delivery-card.summary.error { border-color:#fecaca; background:linear-gradient(180deg,#fef2f2,#ffffff); }
+.board-task-delivery-card.summary.cancelled { border-color:#fed7aa; background:linear-gradient(180deg,#fff7ed,#ffffff); }
+.board-task-delivery-label { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; color:#0f766e; font-size:12px; font-weight:800; }
+.board-task-delivery-card.summary.error .board-task-delivery-label { color:#b91c1c; }
+.board-task-delivery-card.summary.cancelled .board-task-delivery-label { color:#c2410c; }
+.board-task-delivery-status { padding:2px 7px; border-radius:999px; background:rgba(15,118,110,0.1); color:#0f766e; font-size:10px; font-weight:800; white-space:nowrap; }
+.board-task-delivery-card.summary.error .board-task-delivery-status { background:#fee2e2; color:#b91c1c; }
+.board-task-delivery-card.summary.cancelled .board-task-delivery-status { background:#ffedd5; color:#c2410c; }
+.board-task-delivery-text { margin:0; color:#334155; font-size:13px; line-height:1.7; white-space:normal; word-break:break-word; }
+.board-task-artifact-list { display:flex; flex-wrap:wrap; gap:6px; }
+.board-task-artifact-chip { display:inline-flex; align-items:center; max-width:100%; padding:5px 9px; border-radius:999px; border:1px solid #dbeafe; background:#eff6ff; color:#1d4ed8; font-size:11px; font-weight:700; text-decoration:none; word-break:break-all; }
+.board-task-artifact-chip:hover { background:#dbeafe; }
+.board-task-artifact-empty { color:#94a3b8; font-size:12px; line-height:1.7; }
+.board-task-details-row { display:flex; flex-direction:column; gap:8px; width:100%; }
+.board-task-details { border:1px solid #e2e8f0; border-radius:10px; background:#fff; overflow:hidden; }
+.board-task-details summary { display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; list-style:none; padding:9px 12px; color:#334155; font-size:12px; font-weight:800; user-select:none; }
+.board-task-details summary::-webkit-details-marker { display:none; }
+.board-task-details summary::after { content:'展开'; color:#2563eb; background:#eff6ff; padding:3px 8px; border-radius:999px; font-size:11px; }
+.board-task-details[open] summary::after { content:'收起'; color:#475569; background:#f1f5f9; }
+.board-task-details-count { margin-left:auto; color:#64748b; font-size:11px; font-weight:700; }
+.board-task-details-body { border-top:1px solid #e2e8f0; padding:10px 12px 12px; background:#fbfdff; }
+.board-task-inline-meta { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+.board-task-inline-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+@media (max-width: 780px) {
+    .board-task-head { flex-direction:column; align-items:stretch; }
+    .task-badges { flex-wrap:wrap; }
+    .board-task-delivery-grid { grid-template-columns:1fr; }
+}
 .desk-control-badge-row { position:absolute; top:18%; left:50%; transform:translateX(-50%); display:flex; gap:6px; z-index:90; flex-wrap:wrap; justify-content:center; max-width:92%; }
 .desk-health-badge, .desk-budget-badge, .desk-task-badge, .desk-recommendation-badge { padding:4px 8px; border-radius:999px; font-size:10px; font-weight:800; background:rgba(255,255,255,0.92); color:#334155; border:1px solid rgba(148,163,184,0.24); box-shadow:0 4px 10px rgba(15,23,42,0.08); }
 .desk-health-badge.running { background:#dbeafe; color:#1d4ed8; }
@@ -4459,23 +4731,23 @@ JSON 格式如下：
 .badge.cancelled { background: #fff7ed; color: #ea580c; border: 1px solid #fed7aa; }
 .badge.assignee { background: #f8fafc; border: 1px solid #e2e8f0; color: #475569; display: flex; align-items: center; gap: 4px; }
 
-.agent-runtime-panel { margin-top: 16px; padding: 16px; border-radius: 14px; background: linear-gradient(180deg, #eff6ff, #f8fafc); border: 1px solid #bfdbfe; overflow: hidden; display: flex; flex-direction: column; }
+.agent-runtime-panel { margin-top: 16px; padding: 16px; border-radius: 14px; background: linear-gradient(180deg, #eff6ff, #f8fafc); border: 1px solid #bfdbfe; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
 .agent-runtime-panel.collapsed { padding-bottom: 12px; }
-.agent-runtime-panel.expanded { height: clamp(300px, 38vh, 420px); max-height: 42vh; }
+.agent-runtime-panel.expanded { height: clamp(360px, 56vh, 640px); max-height: min(70vh, 680px); }
 .agent-runtime-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 10px; flex: 0 0 auto; }
 .agent-runtime-panel h4 { margin: 0; font-size: 16px; color: #1d4ed8; flex: 0 0 auto; }
 .agent-runtime-toggle { border:none; border-radius:999px; padding:7px 12px; cursor:pointer; font-size:12px; font-weight:700; background:#dbeafe; color:#1d4ed8; }
-.agent-runtime-body { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.agent-runtime-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding-right: 4px; scrollbar-gutter: stable; }
 .agent-runtime-panel.collapsed .agent-runtime-body { display: none; }
-.agent-runtime-grid { display: grid; grid-template-columns: 1.1fr 1.3fr; gap: 14px; flex: 1 1 auto; min-height: 0; align-items: stretch; overflow: hidden; height: 100%; }
-.agent-runtime-card { background: #fff; border: 1px solid #dbeafe; border-radius: 12px; padding: 12px; min-height: 0; overflow: auto; }
+.agent-runtime-grid { display: grid; grid-template-columns: 1.1fr 1.3fr; gap: 14px; flex: 1 1 auto; min-height: min-content; align-items: start; overflow: visible; height: auto; }
+.agent-runtime-card { background: #fff; border: 1px solid #dbeafe; border-radius: 12px; padding: 12px; min-height: 0; overflow: visible; overflow-wrap: anywhere; word-break: break-word; }
 .agent-runtime-card strong { display: block; margin-bottom: 6px; color: #0f172a; }
 .agent-runtime-pill { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #e2e8f0; color: #334155; margin-right: 6px; margin-bottom: 6px; }
 .agent-runtime-pill.waiting_approval { background: #fef3c7; color: #92400e; }
 .agent-runtime-pill.running { background: #dbeafe; color: #1d4ed8; }
 .agent-runtime-pill.completed { background: #dcfce7; color: #166534; }
 .agent-runtime-pill.failed, .agent-runtime-pill.cancelled { background: #fee2e2; color: #b91c1c; }
-.agent-run-list { display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow: auto; }
+.agent-run-list { display: flex; flex-direction: column; gap: 10px; max-height: none; overflow: visible; }
 .agent-run-item { padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0; background: #fff; }
 .agent-run-item-title { font-weight: 700; color: #0f172a; margin-bottom: 6px; }
 .agent-run-item-meta { font-size: 12px; color: #64748b; margin-bottom: 8px; }
@@ -4531,7 +4803,7 @@ JSON 格式如下：
 .app-dialog-btn.warning { background: linear-gradient(135deg, #f59e0b, #f97316); color: #fff; box-shadow: 0 12px 24px rgba(245, 158, 11, 0.22); }
 .app-dialog-btn.error { background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; box-shadow: 0 12px 24px rgba(239, 68, 68, 0.22); }
 .app-dialog-btn.neutral { background: #e2e8f0; color: #334155; }
-@media (max-width: 900px) { .agent-runtime-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .agent-runtime-panel.expanded { height: min(70vh, 620px); max-height: 70vh; } .agent-runtime-grid { grid-template-columns: 1fr; } }
 
     </style>
 
@@ -5876,12 +6148,20 @@ JSON 格式如下：
                 );
 
                 const status = String(item.status || item['状态'] || 'todo').trim().toLowerCase() || 'todo';
+                const dependsOnSource = item.depends_on || item.dependsOn || item.dependencies || item['前置任务'] || item['依赖任务'] || [];
+                const dependsOn = Array.isArray(dependsOnSource)
+                    ? dependsOnSource.map(dep => String(dep || '').trim()).filter(Boolean)
+                    : String(dependsOnSource || '').split(/[,，、\s]+/).map(dep => dep.trim()).filter(Boolean);
                 return {
                     id: item.id || Math.random().toString(36).substring(2, 10),
                     title,
                     assignee,
                     status,
-                    order: Number.isFinite(item.order) ? item.order : index
+                    order: Number.isFinite(item.order) ? item.order : index,
+                    phase: String(item.phase || item.stage || item['阶段'] || '').trim(),
+                    depends_on: dependsOn,
+                    deliverable: String(item.deliverable || item.output || item['交付物'] || item['产物'] || '').trim(),
+                    gate: String(item.gate || item['准入条件'] || item['完成条件'] || '').trim()
                 };
             }).filter(task => task.title);
         }
@@ -6063,6 +6343,28 @@ JSON 格式如下：
             return scored[0]?.name || candidates[0]?.[0] || '';
         }
 
+        function isWebsiteStrategyDemand(taskContent) {
+            return /官网|网站|web\s*site|website|landing\s*page|网页|页面|前端|响应式|本地预览|测试链接/i.test(String(taskContent || ''));
+        }
+
+        function createPhasedStrategyTask(tasks, candidates, usedNames, phase, title, keywords, dependsOn, deliverable, gate) {
+            const assignee = pickStrategyOwner(candidates, usedNames, keywords);
+            if (assignee) usedNames.add(assignee);
+            const id = `${phase}-${tasks.length + 1}`;
+            tasks.push({
+                id,
+                title,
+                assignee,
+                status: dependsOn?.length ? 'backlog' : 'todo',
+                order: tasks.length,
+                phase,
+                depends_on: dependsOn || [],
+                deliverable,
+                gate
+            });
+            return id;
+        }
+
         function buildFallbackStrategyBoard(taskContent, availableNodes) {
             const normalizedDemand = String(taskContent || '').trim();
             const demandLower = normalizedDemand.toLowerCase();
@@ -6084,17 +6386,18 @@ JSON 格式如下：
                 });
             };
 
-            const isWebsiteLike = /官网|网站|web|平台|系统|小程序|页面|前端|后台|saas/i.test(normalizedDemand);
+            const isWebsiteLike = isWebsiteStrategyDemand(normalizedDemand) || /平台|系统|小程序|后台|saas/i.test(normalizedDemand);
             const needPpt = /ppt|汇报|路演|演示文稿|幻灯片/i.test(normalizedDemand);
             const needOperation = /运营|推广|投放|增长|宣传|文案|品牌/i.test(normalizedDemand);
 
             if (isWebsiteLike) {
-                pushTask(`梳理《${projectName}》需求、里程碑与 PRD 方案`, ['产品', '项目', 'pm', '策划']);
-                pushTask(`完成《${projectName}》信息架构、页面原型与交互设计`, ['ui', 'ux', '设计', '交互', '产品']);
-                pushTask(`完成《${projectName}》前端页面开发与响应式适配`, ['前端', 'web', 'html', 'javascript', 'react']);
-                pushTask(`完成《${projectName}》后端接口、数据结构与服务搭建`, ['后端', 'java', 'go', 'python', '接口', '服务端']);
-                pushTask(`完成《${projectName}》联调测试、验收清单与问题修复`, ['测试', 'qa', '质量']);
-                pushTask(`完成《${projectName}》上线部署、监控配置与交付说明`, ['运维', 'devops', '部署', '服务器']);
+                const prd = createPhasedStrategyTask(tasks, candidates, usedNames, 'prd', `输出《${projectName}》官网 PRD：目标用户、核心卖点、页面范围、验收标准`, ['产品', '项目', 'pm', '策划'], [], 'docs/prd.md', '明确需求边界后才能进入原型');
+                const prototype = createPhasedStrategyTask(tasks, candidates, usedNames, 'prototype', `输出《${projectName}》官网信息架构、页面流程和低保真原型`, ['ui', 'ux', '设计', '交互', '产品'], [prd], 'docs/prototype.md 或 prototype.html', 'PRD 已完成并可追溯');
+                const uiux = createPhasedStrategyTask(tasks, candidates, usedNames, 'uiux', `输出《${projectName}》官网 UI/UX 视觉规范、组件状态和响应式规则`, ['ui', 'ux', '设计', '视觉'], [prototype], 'docs/ui-spec.md', '原型结构已确认');
+                const frontend = createPhasedStrategyTask(tasks, candidates, usedNames, 'frontend', `完成《${projectName}》官网前端页面、视觉还原和移动端适配`, ['前端', 'web', 'html', 'javascript', 'react'], [uiux], 'index.html、样式和前端资源', 'UI/UX 规范已完成');
+                const backend = createPhasedStrategyTask(tasks, candidates, usedNames, 'backend', `完成《${projectName}》官网本地服务、资源组织和预览启动方式`, ['后端', 'java', 'go', 'python', '接口', '服务端', '运维'], [frontend], '本地启动说明和服务配置', '前端页面已可运行');
+                const test = createPhasedStrategyTask(tasks, candidates, usedNames, 'test', `基于本地页面完成《${projectName}》测试报告、问题清单和修复建议`, ['测试', 'qa', '质量'], [frontend, backend], 'docs/test-report.md', '前后端/本地服务已完成');
+                createPhasedStrategyTask(tasks, candidates, usedNames, 'preview', `生成《${projectName}》本地测试链接并整理最终交付说明`, ['运维', 'devops', '部署', '服务器', '测试'], [test], '本地预览 URL 与交付说明', '测试报告已完成');
             } else {
                 pushTask(`梳理《${projectName}》目标、范围与执行计划`, ['产品', '项目', 'pm', '策划']);
                 pushTask(`完成《${projectName}》核心内容方案与交付结构设计`, ['策划', '产品', '运营', '设计']);
@@ -6122,6 +6425,7 @@ JSON 格式如下：
 
             return {
                 project_name: projectName,
+                execution_mode: isWebsiteLike ? 'phased' : 'standard',
                 tasks: unique.slice(0, 8)
             };
         }
@@ -6513,7 +6817,10 @@ JSON 格式如下：
                 return `- 姓名：${name}，岗位：${role}，上级：${manager}，职责说明：${desc}`;
             }).join('\n');
 
-            const planPrompt = `你是公司的 PM 助手，需要把老板给出的战略需求拆解为可以直接执行的项目看板 JSON。\n\n老板需求：\n${taskContent}\n\n当前可用员工：\n${teamInfo}\n\n请严格只返回 JSON，不要输出 Markdown、解释、额外说明。返回格式必须是：\n{\n  "project_name": "项目名称",\n  "tasks": [\n    {\n      "title": "任务标题",\n      "assignee": "员工姓名"\n    }\n  ]\n}\n\n要求：\n1. 任务数量控制在 1 到 8 条之间。\n2. assignee 必须从当前可用员工里选择。\n3. title 必须是明确、可执行、可交付的工作事项。\n4. 如果需求适合拆成并行任务，请优先拆成多人协作。`;
+            const websiteFlowHint = isWebsiteStrategyDemand(taskContent)
+                ? `\n\n这是官网/网站类需求，必须按阶段依赖拆解，禁止把测试、预览、上线类任务与 PRD/原型/开发并行下发。推荐阶段：\n1. prd：先输出 PRD 和验收标准。\n2. prototype：依赖 prd，输出信息架构/低保真原型。\n3. uiux：依赖 prototype，输出视觉规范和交互状态。\n4. frontend：依赖 uiux，完成前端页面和响应式适配。\n5. backend：依赖 frontend，完成本地服务/资源组织/启动方式。\n6. test：依赖 frontend 和 backend，输出测试报告。\n7. preview：依赖 test，产出网站本地测试链接和交付说明。`
+                : '';
+            const planPrompt = `你是公司的 PM 助手，需要把老板给出的战略需求拆解为项目看板 JSON。\n\n老板需求：\n${taskContent}\n\n当前可用员工：\n${teamInfo}${websiteFlowHint}\n\n请严格只返回 JSON，不要输出 Markdown、解释、额外说明。返回格式必须是：\n{\n  "project_name": "项目名称",\n  "execution_mode": "phased 或 standard",\n  "tasks": [\n    {\n      "id": "稳定短 id，例如 prd-1",\n      "title": "任务标题",\n      "assignee": "员工姓名",\n      "phase": "prd/prototype/uiux/frontend/backend/test/preview 或普通阶段名",\n      "depends_on": ["前置任务 id，没有则为空数组"],\n      "deliverable": "明确交付物",\n      "gate": "进入下一阶段的完成条件"\n    }\n  ]\n}\n\n要求：\n1. 任务数量控制在 1 到 8 条之间。\n2. assignee 必须从当前可用员工里选择。\n3. title 必须是明确、可执行、可交付的工作事项。\n4. 只有没有 depends_on 的首阶段任务可以立即开始；后续任务必须等待前置任务完成。`;
 
             closeModal('ceoModal');
             document.getElementById('loadingOverlay').style.display = 'flex';
@@ -6637,12 +6944,17 @@ JSON 格式如下：
                 }).join('');
                 const delegationTarget = task.assignee || '';
                 const delegationHint = delegationTarget ? `建议分派给：${delegationTarget}` : '建议分派给：待选择';
+                const dependencyHint = Array.isArray(task.depends_on) && task.depends_on.length
+                    ? `前置：${task.depends_on.join('、')}`
+                    : '前置：无，可首轮启动';
+                const phaseHint = [task.phase ? `阶段：${task.phase}` : '', task.deliverable ? `交付：${task.deliverable}` : '', dependencyHint].filter(Boolean).join(' / ');
 
                 container.innerHTML += `
                     <div style="display:flex; gap:10px; margin-bottom:12px; align-items:center; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0;">
                         <div style="display:flex; flex-direction:column; flex:1; gap:6px;">
                             <input type="text" value="${escapeHtml(task.title || '')}" onchange="window.tempStrategyBoardData.tasks[${index}].title = this.value" style="padding:8px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:14px;" placeholder="请输入任务标题">
                             <div style="font-size:12px; color:#64748b;">${escapeHtml(getEmployeeOrgBadge(task.assignee || ''))} / ${escapeHtml(delegationHint)} / 升级给上级</div>
+                            ${phaseHint ? `<div style="font-size:12px; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:6px 8px;">${escapeHtml(phaseHint)}</div>` : ''}
                             <div style="display:flex; align-items:center; gap:8px;">
                                 <span style="font-size:12px; color:#64748b;">负责人：</span>
                                 <select onchange="window.tempStrategyBoardData.tasks[${index}].assignee = this.value" style="padding:6px; border:1px solid #cbd5e1; border-radius:6px; font-size:13px; outline:none; cursor:pointer;">
@@ -6676,10 +6988,67 @@ JSON 格式如下：
             renderStrategyTasks();
         }
 
+        function getReadyStrategyTasks(tasks) {
+            const list = Array.isArray(tasks) ? tasks : [];
+            const doneIds = new Set(list.filter(task => String(task.status || '').toLowerCase() === 'done').map(task => String(task.id || '')));
+            return list.filter(task => {
+                const status = String(task.status || 'todo').toLowerCase();
+                const deps = Array.isArray(task.depends_on) ? task.depends_on : [];
+                return (status === 'todo' || status === 'backlog') && deps.every(dep => doneIds.has(String(dep || '')));
+            }).map(task => ({ ...task, status: 'todo' }));
+        }
+
+        async function dispatchStrategyTasksToAssignees(tasks, projectName) {
+            const readyTasks = Array.isArray(tasks) ? tasks.filter(task => task && task.id && task.title && task.assignee) : [];
+            if (!readyTasks.length) return [];
+
+            const dispatchResults = [];
+            for (const task of readyTasks) {
+                const payloadTasks = [{
+                    project_name: String(projectName || ''),
+                    id: String(task.id || ''),
+                    title: [
+                        `项目：${projectName || '未命名项目'}`,
+                        `阶段：${task.phase || '未设置'}`,
+                        `任务：${task.title || ''}`,
+                        task.deliverable ? `交付物：${task.deliverable}` : '',
+                        task.gate ? `完成条件：${task.gate}` : '',
+                        '请直接产出文件或可验证结果，完成后提交执行总结。'
+                    ].filter(Boolean).join('\n'),
+                    assignee: String(task.assignee || '')
+                }];
+
+                const res = await fetch('/api/agent_task', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Username': encodeURIComponent(task.assignee) },
+                    body: JSON.stringify({
+                        message: `请执行下面唯一的看板任务 JSON 数组：\n${JSON.stringify(payloadTasks, null, 2)}`,
+                        modelIndex: window.teamConfig?.PeerNodes?.[task.assignee]?.ModelIndex || 0,
+                        sop: window.teamConfig?.CompanySOP || '',
+                        caller: 'board'
+                    })
+                });
+                const raw = await res.text();
+                if (!res.ok) {
+                    throw new Error(raw || `任务 ${task.id} 下发失败`);
+                }
+                dispatchResults.push(parseLooseJsonObjectFromText(raw) || { raw });
+            }
+
+            return dispatchResults;
+        }
+
         async function confirmAndDispatchStrategy() {
             const boardData = window.tempStrategyBoardData || { tasks: [] };
             boardData.project_name = document.getElementById('editProjectName').value.trim() || '未命名项目';
-            boardData.tasks = (boardData.tasks || []).filter(task => String(task.title || '').trim() !== '');
+            boardData.tasks = (boardData.tasks || []).filter(task => String(task.title || '').trim() !== '').map((task, index, list) => {
+                const deps = Array.isArray(task.depends_on) ? task.depends_on.filter(Boolean) : [];
+                return {
+                    ...task,
+                    status: deps.length ? (task.status === 'done' ? 'done' : 'backlog') : (task.status || 'todo'),
+                    order: Number.isFinite(task.order) ? task.order : index
+                };
+            });
 
             if (!boardData.tasks.length) {
                 alert('请至少保留一项任务后再发布。');
@@ -6702,20 +7071,11 @@ JSON 格式如下：
                 });
                 await refreshBoard();
 
-                const execPrompt = `请把下面这个项目写入执行系统，并把每条任务交给对应负责人开始执行。\n\n项目名称：${boardData.project_name}\n任务清单：\n${JSON.stringify(boardData.tasks, null, 2)}\n\n请调用 delegate_task 工具逐条下发任务，并只返回 JSON，总结每条任务对应的 task_id。`;
+                const readyTasks = getReadyStrategyTasks(boardData.tasks);
+                dispatchStrategyTasksToAssignees(readyTasks, boardData.project_name)
+                    .catch(e => console.error('自动下发执行任务失败：', e));
 
-                fetch('/api/agent_task', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Username': encodeURIComponent(pmName) },
-                    body: JSON.stringify({
-                        message: execPrompt,
-                        modelIndex: window.teamConfig?.PeerNodes?.[pmName]?.ModelIndex || 0,
-                        sop: companySop,
-                        caller: 'ceo'
-                    })
-                }).catch(e => console.error('自动下发执行任务失败：', e));
-
-                alert(`项目《${boardData.project_name}》已发布到项目看板，并已交给 ${pmName} 开始安排执行。`);
+                alert(`项目《${boardData.project_name}》已发布到项目看板。本轮只启动 ${readyTasks.length || 0} 个无前置依赖任务，后续阶段需等待前置任务完成。`);
             } catch (e) {
                 alert('发布项目失败：' + (e?.message || e));
             } finally {
@@ -10009,19 +10369,182 @@ function renderBoardTaskControlActions(task, employeeName) {
     return `${jumpBtn}${escalate}`;
 }
 
+function normalizeBoardTaskResultText(taskResult) {
+    return String(taskResult || '')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<!doctype[^>]*>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/[{}[\]"`]/g, ' ')
+        .replace(/\r/g, '\n')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function summarizeBoardTaskResult(task, statusClass) {
+    const taskResult = task?.result || task?.Result || '';
+    const text = normalizeBoardTaskResultText(taskResult);
+    if (text) {
+        const taskMatch = text.match(/任务[:：]\s*([^。；;]+?)(?:\s+交付物[:：]|完成条件[:：]|$)/i);
+        const deliverableMatches = [...text.matchAll(/(?:交付物|产物)[:：为]?\s*([^。；;]+?)(?:\s+任务[:：]|\s+完成条件[:：]|$)/gi)]
+            .map(match => String(match?.[1] || '').trim())
+            .filter(value => value && /\.(md|html|pdf|docx?|png|jpe?g|gif|webp|mp4)\b/i.test(value))
+            .filter(value => !/(AGENTS\.md|BOOTSTRAP\.md|IDENTITY\.md|SOUL\.md|USER\.md|runs\/|memory\/|列表\s*-)/i.test(value));
+        const deliverableText = deliverableMatches.length ? deliverableMatches[deliverableMatches.length - 1] : '';
+        if (taskMatch || deliverableText) {
+            const parts = [];
+            if (taskMatch?.[1]) parts.push(taskMatch[1].trim());
+            if (deliverableText) parts.push(`交付物：${deliverableText}`);
+            const compact = parts.join('；');
+            if (compact) return compact.length > 180 ? `${compact.slice(0, 180)}...` : compact;
+        }
+        const readable = text
+            .replace(/^Run ID[:：]\s*\S+\s*/i, '')
+            .replace(/^任务\s*[“"'][^”"']+[”"']\s*/i, '')
+            .replace(/^前置结果[:：]\s*/i, '')
+            .replace(/^结果[:：]\s*/i, '')
+            .trim();
+        const cleaned = readable
+            .split(/(?<=。|！|!|？|\?)\s+/)
+            .map(line => line.trim())
+            .filter(Boolean)
+            .find(line => !/^(html|head|body|meta|style|script|function|const|let|var)\b/i.test(line)) || readable || text;
+        return cleaned.length > 180 ? `${cleaned.slice(0, 180)}...` : cleaned;
+    }
+    if (statusClass === 'done') return '任务已完成，暂未写入额外交付说明。';
+    if (statusClass === 'doing' || statusClass === 'in_progress') return '正在执行中，阶段完成后会在这里显示交付摘要。';
+    if (statusClass === 'failed' || statusClass === 'blocked') return '当前任务存在阻塞或失败，请展开“治理与操作”查看处理动作。';
+    if (statusClass === 'cancelled') return '任务已取消，详情可展开查看执行历史。';
+    return '尚未开始，等待前置阶段或负责人启动。';
+}
+
+function cleanBoardTaskArtifactValue(value) {
+    return String(value || '').trim().replace(/[，。；;、,)）"'’”`]+$/g, '');
+}
+
+function addBoardTaskDeliverableItem(items, seen, value, source = 'result') {
+    const cleaned = cleanBoardTaskArtifactValue(value);
+    if (!cleaned) return;
+    let displayValue = cleaned;
+    try {
+        if (/%[0-9a-f]{2}/i.test(cleaned)) displayValue = decodeURIComponent(cleaned);
+    } catch (_) {
+        displayValue = cleaned;
+    }
+    let label = displayValue.split(/[\\/]/).filter(Boolean).pop() || displayValue;
+    if (/^(项目|赞扬|做一个介绍)/.test(label) && label.length > 34) {
+        label = label.includes('.') ? `任务交付文档.${label.split('.').pop()}` : '任务交付文档';
+    }
+    const normalizedLabel = label.toLowerCase();
+    if (['agents.md', 'bootstrap.md', 'identity.md', 'soul.md', 'user.md'].includes(normalizedLabel) || /^\d{4}-\d{2}-\d{2}\.md$/.test(normalizedLabel)) return;
+    if (/[/\\]runs[/\\]/i.test(displayValue) || /^[a-f0-9]{24,}\.json$/i.test(normalizedLabel)) return;
+    const key = displayValue.toLowerCase();
+    const labelKey = `label:${normalizedLabel}`;
+    if (seen.has(key) || seen.has(labelKey)) return;
+    seen.add(key);
+    seen.add(labelKey);
+    items.push({ value: cleaned, displayValue, label, source });
+}
+
+function collectBoardTaskDeliverables(task, taskResult) {
+    const items = [];
+    const seen = new Set();
+    const deliverable = String(task?.deliverable || task?.Deliverable || '').trim();
+    if (deliverable) {
+        deliverable
+            .split(/[，、,\n;；]+|\s+或\s+/)
+            .map(item => item.trim())
+            .filter(Boolean)
+            .forEach(item => addBoardTaskDeliverableItem(items, seen, item, 'plan'));
+    }
+    const resultText = String(taskResult || '');
+    const urlMatches = resultText.match(/https?:\/\/[^\s"'<>`）)]+/g) || [];
+    urlMatches.forEach(item => addBoardTaskDeliverableItem(items, seen, item, 'url'));
+    const artifactMatches = resultText.match(/(?:[A-Za-z]:\\[^\s"'<>`，。,；;)）]+?\.(?:html|md|pdf|docx?|png|jpe?g|gif|webp|mp4)|(?:docs|artifacts|preview|dist|src|public|assets|reports|test-results)\/[^\s"'<>`，。,；;)）]+|[\w.-]+\.(?:html|md|pdf|docx?|png|jpe?g|gif|webp|mp4))/gi) || [];
+    artifactMatches.forEach(item => addBoardTaskDeliverableItem(items, seen, item, 'result'));
+    return items.slice(0, 8);
+}
+
+function renderBoardTaskDeliverableChips(task, taskResult, statusClass) {
+    const items = collectBoardTaskDeliverables(task, taskResult);
+    if (!items.length) {
+        const emptyText = ['todo', 'backlog'].includes(statusClass)
+            ? '暂无交付物，阶段完成后会自动补充。'
+            : '暂无可识别的文件或链接。';
+        return `<div class="board-task-artifact-empty">${emptyText}</div>`;
+    }
+    return items.map(item => {
+        const label = item.label.length > 46 ? `${item.label.slice(0, 46)}...` : item.label;
+        const value = item.value;
+        if (/^https?:\/\//i.test(value)) {
+            return `<a class="board-task-artifact-chip" href="${escapeHtml(value)}" target="_blank" rel="noopener" title="${escapeHtml(item.displayValue || value)}">${escapeHtml(label)}</a>`;
+        }
+        return `<span class="board-task-artifact-chip" title="${escapeHtml(item.displayValue || value)}">${escapeHtml(label)}</span>`;
+    }).join('');
+}
+
+function renderBoardTaskDeliveryPanel(task, statusClass, statusText) {
+    const taskResult = task?.result || task?.Result || '';
+    const isFailed = statusClass === 'failed' || statusClass === 'blocked';
+    const isCancelled = statusClass === 'cancelled';
+    const title = isFailed ? '问题摘要' : (isCancelled ? '取消摘要' : '交付总结');
+    const summaryClass = isFailed ? ' error' : (isCancelled ? ' cancelled' : '');
+    return `
+        <div class="board-task-delivery-grid">
+            <div class="board-task-delivery-card summary${summaryClass}">
+                <div class="board-task-delivery-label">
+                    <span>${title}</span>
+                    <span class="board-task-delivery-status">${escapeHtml(statusText || statusClass || '未知')}</span>
+                </div>
+                <p class="board-task-delivery-text">${escapeHtml(summarizeBoardTaskResult(task, statusClass))}</p>
+            </div>
+            <div class="board-task-delivery-card">
+                <div class="board-task-delivery-label"><span>交付物</span></div>
+                <div class="board-task-artifact-list">${renderBoardTaskDeliverableChips(task, taskResult, statusClass)}</div>
+            </div>
+        </div>`;
+}
+
+function renderBoardTaskDetailSection(title, bodyHtml, metaText = '') {
+    const body = String(bodyHtml || '').trim();
+    if (!body) return '';
+    return `<details class="board-task-details"><summary><span>${escapeHtml(title)}</span>${metaText ? `<span class="board-task-details-count">${escapeHtml(metaText)}</span>` : ''}</summary><div class="board-task-details-body">${body}</div></details>`;
+}
+
+function renderBoardTaskExecutionHistoryDetails(task, employeeName) {
+    const history = buildTaskExecutionHistory(task, employeeName);
+    const runItems = history.recentRuns.map(run => {
+        const status = String(run?.status || run?.Status || 'unknown');
+        const time = String(run?.updatedAt || run?.UpdatedAt || run?.createdAt || run?.CreatedAt || '暂无');
+        const summary = String(run?.summary || run?.Summary || run?.taskText || run?.TaskText || '暂无摘要');
+        return `<div class="board-task-history-item"><strong>${escapeHtml(status)}</strong> / ${escapeHtml(time)}<br>${escapeHtml(summary)}</div>`;
+    }).join('') || '<div class="board-task-history-item">执行历史：暂无</div>';
+    const latestSuccess = history.latestSuccess ? String(history.latestSuccess?.updatedAt || history.latestSuccess?.UpdatedAt || history.latestSuccess?.createdAt || history.latestSuccess?.CreatedAt || '暂无') : '暂无';
+    const latestFailure = history.latestFailure ? String(history.latestFailure?.updatedAt || history.latestFailure?.UpdatedAt || history.latestFailure?.createdAt || history.latestFailure?.CreatedAt || '暂无') : '暂无';
+    const repeatedHints = `${history.repeatedReject ? '反复打回' : '反复打回：否'} / ${history.repeatedFailure ? '反复失败' : '反复失败：否'}`;
+    return `<div class="board-task-inline-meta"><span class="board-task-risk-pill">最近3次运行：${escapeHtml(String(history.recentRuns.length))}</span><span class="board-task-risk-pill">最近成功：${escapeHtml(latestSuccess)}</span><span class="board-task-risk-pill">最近失败：${escapeHtml(latestFailure)}</span><span class="board-task-risk-pill">${escapeHtml(repeatedHints)}</span></div><div class="board-task-timeline-card expanded">${runItems}</div>`;
+}
+
+function renderBoardTaskLineageDetails(task, project) {
+    const lineage = buildBoardTaskLineageSummary(task, project);
+    return `<div class="board-task-lineage-card expanded"><div class="board-task-comment-item"><strong>公司目标</strong><br>${escapeHtml(lineage.companyGoal)}</div><div class="board-task-comment-item"><strong>项目目标</strong><br>${escapeHtml(lineage.projectGoal)}</div><div class="board-task-comment-item"><strong>父任务预览</strong><br>${escapeHtml(lineage.parentTaskPreview)}</div><div class="board-task-comment-item"><strong>当前任务上下文</strong><br>${escapeHtml(lineage.taskContext)}</div></div>`;
+}
+
 function buildBoardTaskControlPlaneSummary(task, project) {
     const employeeName = String(task?.assignee || task?.Assignee || '').trim();
     const flags = getBoardTaskRiskFlags(task, employeeName);
     const pills = flags.map(flag => `<span class="board-task-risk-pill ${escapeHtml(flag.tone)}">${escapeHtml(flag.label)}</span>`).join('');
     const actions = renderBoardTaskControlActions(task, employeeName);
     const posture = renderBoardTaskExecutionPosture(task, employeeName);
-    const timeline = renderBoardTaskExecutionTimeline(task, employeeName);
+    const timeline = renderBoardTaskExecutionHistoryDetails(task, employeeName);
     const runSummary = buildBoardTaskRunSummary(task, employeeName);
     const inlineActions = renderBoardTaskInlineGovernanceActions(task);
-    const lineageCard = renderBoardTaskLineageContext(task, project);
+    const lineageCard = renderBoardTaskLineageDetails(task, project);
     const recommendationHtml = renderTaskGovernanceRecommendation(task, employeeName);
     if (!pills && !actions && !posture && !recommendationHtml && !timeline && !runSummary && !inlineActions && !lineageCard) return '';
-    return `<div class="board-task-risk-row">${pills}${actions}</div>${posture}${renderTaskGovernanceRecommendation(task, employeeName)}${lineageCard}${timeline}${runSummary}${inlineActions}`;
+    const governanceHtml = `${pills || actions ? `<div class="board-task-risk-row">${pills}${actions}</div>` : ''}${posture}${recommendationHtml}${inlineActions}`;
+    const historyHtml = `${timeline}${runSummary}`;
+    return `<div class="board-task-details-row">${renderBoardTaskDetailSection('治理与操作', governanceHtml, flags.length ? `${flags.length} 项提醒` : '可选')}${renderBoardTaskDetailSection('目标链', lineageCard, '上下文')}${renderBoardTaskDetailSection('执行历史', historyHtml, '运行记录')}</div>`;
 }
 
 function findRunsForTask(task, employeeName) {
@@ -10591,6 +11114,10 @@ async function refreshBoard() {
 
                         let statusText = '待办 (TODO)';
                         if (statusClass === 'doing') statusText = '进行中 (DOING)';
+                        if (statusClass === 'in_progress') statusText = '进行中 (DOING)';
+                        if (statusClass === 'backlog') statusText = '等待前置 (BACKLOG)';
+                        if (statusClass === 'in_review') statusText = '待审核 (REVIEW)';
+                        if (statusClass === 'blocked') statusText = '已阻塞 (BLOCKED)';
                         if (statusClass === 'done') statusText = '已完成 (DONE)';
                         if (statusClass === 'failed') statusText = '失败 (FAILED)';
                         if (statusClass === 'cancelled') statusText = '已取消 (CANCELLED)';
@@ -10599,40 +11126,24 @@ async function refreshBoard() {
                         const taskResult = task.result || task.Result;
                         const taskId = String(task.id || task.Id || '');
                         const projectNameRaw = String(project.project_name || project.ProjectName || '');
-                        const isFailedResult = statusClass === 'failed';
+                        const isFailedResult = statusClass === 'failed' || statusClass === 'blocked';
                         const isCancelledResult = statusClass === 'cancelled';
-                        const canRetry = (isFailedResult || isCancelledResult) && !!taskId && !!(task.assignee || task.Assignee);
+                        const canStart = ['todo', 'backlog'].includes(statusClass) && !!taskId && !!(task.assignee || task.Assignee);
+                        const canRetry = (canStart || isFailedResult || isCancelledResult) && !!taskId && !!(task.assignee || task.Assignee);
                         const canDelete = statusClass !== 'doing' && !!taskId;
-                        let resultHtml = '';
                         const retryButtonHtml = canRetry
-                            ? `<button type="button" onclick="event.stopPropagation(); retryBoardTask('${escapeJsSingleQuotedString(projectNameRaw)}', '${escapeJsSingleQuotedString(taskId)}');" style="padding:7px 12px; border:none; border-radius:999px; cursor:pointer; font-size:12px; font-weight:700; color:#b45309; background:rgba(245,158,11,0.14); white-space:nowrap;">重新尝试</button>`
+                            ? `<button type="button" onclick="event.stopPropagation(); retryBoardTask('${escapeJsSingleQuotedString(projectNameRaw)}', '${escapeJsSingleQuotedString(taskId)}');" style="padding:7px 12px; border:none; border-radius:999px; cursor:pointer; font-size:12px; font-weight:700; color:#b45309; background:rgba(245,158,11,0.14); white-space:nowrap;">${canStart ? '开始执行' : '重新尝试'}</button>`
                             : '';
                         const deleteButtonHtml = canDelete
                             ? `<button type="button" onclick="event.stopPropagation(); deleteBoardTask('${escapeJsSingleQuotedString(projectNameRaw)}', '${escapeJsSingleQuotedString(taskId)}');" style="padding:7px 12px; border:none; border-radius:999px; cursor:pointer; font-size:12px; font-weight:700; color:#dc2626; background:rgba(239,68,68,0.1); white-space:nowrap;">删除任务</button>`
                             : '';
 
-                        if (taskResult) {
-                            resultHtml = `
-                            <div style="margin-top: 8px; padding: 10px 14px; background: rgba(16, 185, 129, 0.05); border-left: 3px solid #10b981; border-radius: 6px; font-size: 0.85em; color: #475569; line-height: 1.5;">
-                                <strong style="color: #059669; display: block; margin-bottom: 4px;">交付总结：</strong>
-                                <div style="white-space: normal; font-family: inherit;">${renderTaskResultContent(taskResult)}</div>
-                            </div>`;
-                            if (isFailedResult || isCancelledResult) {
-                                const resultTheme = isFailedResult
-                                    ? { background: 'rgba(239, 68, 68, 0.08)', border: '#ef4444', titleColor: '#dc2626', title: '错误原因：' }
-                                    : { background: 'rgba(249, 115, 22, 0.08)', border: '#f97316', titleColor: '#ea580c', title: '取消原因：' };
-                                resultHtml = resultHtml
-                                    .replace('rgba(16, 185, 129, 0.05)', resultTheme.background)
-                                    .replace('#10b981', resultTheme.border)
-                                    .replace(/<strong style="color: [^"]+; display: block; margin-bottom: 4px;">.*?<\/strong>/, `<strong style="color: ${resultTheme.titleColor}; display: block; margin-bottom: 4px;">${resultTheme.title}</strong>`);
-                            }
-                        }
-
+                        const deliveryHtml = renderBoardTaskDeliveryPanel(task, statusClass, statusText);
                         const controlPlaneSummaryHtml = buildBoardTaskControlPlaneSummary(task, project);
                         tasksHtml += `
-                        <div class="task-row" data-task-id="${escapeHtml(taskId)}" data-project-name="${escapeHtml(projectNameRaw)}" style="display:flex; flex-direction:column; align-items:stretch; padding: 12px 0;">
-                            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-                                <div class="task-title">${escapeHtml(task.title || task.Title)}</div>
+                        <div class="task-row board-task-card" data-task-id="${escapeHtml(taskId)}" data-project-name="${escapeHtml(projectNameRaw)}" style="display:flex; flex-direction:column; align-items:stretch; padding: 12px 0;">
+                            <div class="board-task-head">
+                                <div class="task-title board-task-title-text">${escapeHtml(task.title || task.Title)}</div>
                                 <div class="task-badges">
                                     ${retryButtonHtml}
                                     ${deleteButtonHtml}
@@ -10641,8 +11152,8 @@ async function refreshBoard() {
                                     <span style="color:#94a3b8; width: 85px; text-align: right;">${escapeHtml(updateTime)}</span>
                                 </div>
                             </div>
+                            ${deliveryHtml}
                             ${controlPlaneSummaryHtml}
-                            ${resultHtml}
                         </div>`;
                     });
                 } else {
@@ -10688,7 +11199,9 @@ async function refreshBoard() {
             listContainer.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:50px; background:#fff; border-radius:10px; border:1px dashed #cbd5e1;">CEO 还没有发布新的项目任务。</div>';
         }
 
-        setTimeout(enhanceBoardRunLinks, 30);
+        if (typeof enhanceBoardRunLinks === 'function') {
+            setTimeout(enhanceBoardRunLinks, 30);
+        }
     } catch (e) {
         console.error('刷新项目看板失败：', e);
     }

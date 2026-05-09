@@ -1,0 +1,16 @@
+{
+  "host": "127.0.0.1",
+  "port": 5077,
+  "workspace": "/mnt/e/新建文件夹/文件/niuma",
+  "asset_dir": "/mnt/e/新建文件夹/文件/niuma/agents/cat_mimi/assets",
+  "output_dir": "/mnt/e/新建文件夹/文件/niuma/agents/cat_mimi/outputs",
+  "font_path": "/mnt/c/Windows/Fonts/msyhbd.ttc",
+  "fonts_dir": "/mnt/c/Windows/Fonts",
+  "default_duration": 60,
+  "default_fps": 30,
+  "role_clip_seconds": {
+    "boss": 180,
+    "me": 75,
+    "planner": 210
+  }
+}

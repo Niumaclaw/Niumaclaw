@@ -1,0 +1,14 @@
+{
+  "port": 5061,
+  "host": "127.0.0.1",
+  "workspace": "/mnt/e/新建文件夹/文件/niuma",
+  "hermes_bin": "hermes",
+  "use_wsl": true,
+  "wsl_distribution": "Ubuntu",
+  "hermes_profile": "default",
+  "toolsets": ["file", "terminal", "search", "session_search", "skills", "vision"],
+  "system_prompt": "你现在作为 niuma 多 Agent 团队中的普通员工节点工作。你必须直接完成任务并给出可执行结果。当前调用是机器对机器，不要向用户反问；如果信息不足，请明确写出假设后继续。优先在给定工作目录内完成任务，输出简洁、明确、可交付。",
+  "command_timeout_seconds": 1800,
+  "heartbeat_timeout_seconds": 600,
+  "state_path": "/mnt/e/新建文件夹/文件/niuma/hermes_node_state_win.json"
+}

@@ -38,6 +38,8 @@ bld/
 *.bak
 *.bak_*
 *.syntaxfix.bak
+__pycache__/
+*.py[cod]
 
 # Local runtime state
 team-runtime*.log
