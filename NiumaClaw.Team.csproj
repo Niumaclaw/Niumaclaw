@@ -39,6 +39,8 @@
 	<ItemGroup>
 		<EmbeddedResource Include="img_shrimp_working.png" />
 		<EmbeddedResource Include="img_empty_desk.png" />
+		<EmbeddedResource Include="office_bull_01.png" />
+		<EmbeddedResource Include="office_horse_01.png" />
 		<EmbeddedResource Include="penzai1.png" />
 		<EmbeddedResource Include="penzai2.png" />
 		<EmbeddedResource Include="penzai3.png" />

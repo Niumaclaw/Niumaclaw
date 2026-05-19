@@ -9,6 +9,7 @@ import re
 import select
 import shlex
 import subprocess
+import sys
 import threading
 import time
 import traceback
@@ -229,6 +230,18 @@ def summarize_attachments_for_prompt(attachments: list[dict[str, Any]] | None, w
         summaries.append('\n'.join(entry_lines))
 
     return '\n\n'.join(summaries) if summaries else '无附件。'
+
+
+def display_workspace_path(path: str) -> str:
+    if os.name == 'nt' and str(path or '').startswith('/'):
+        return str(path)
+    return Path(path).resolve().as_posix()
+
+
+def normalize_local_command(command: list[str]) -> list[str]:
+    if os.name == 'nt' and command and command[0].lower() in {'python', 'python3'}:
+        return [sys.executable, *command[1:]]
+    return command
 
 
 def _normalize_snapshot_audit_payload(payload: Any) -> dict[str, Any]:
@@ -497,7 +510,7 @@ def build_hermes_prompt(
         config.system_prompt,
         f'员工名：{username}',
         f'岗位：{role or "普通员工"}',
-        f'工作目录：{Path(config.workspace).resolve().as_posix()}',
+        f'工作目录：{display_workspace_path(config.workspace)}',
         f'调用人：{caller or "ceo"}',
         f'SOP：{sop or "无"}',
         '任务目标链：',
@@ -821,7 +834,7 @@ class HermesNodeRuntime:
                 return result_text
 
             process = subprocess.Popen(
-                command,
+                normalize_local_command(command),
                 cwd=self.config.workspace,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
@@ -1021,12 +1034,12 @@ class HermesNodeRuntime:
                 'user': username,
                 'adapterType': 'hermes',
                 'role': session.role or '普通员工',
-                'workspace': str(Path(self.config.workspace).resolve()),
+                'workspace': display_workspace_path(self.config.workspace),
                 'identity': (
                     f'# IDENTITY.md\n\n'
                     f'- Name: {username}\n'
                     f'- Role: {session.role or "普通员工"}\n'
-                    f'- Workspace: {Path(self.config.workspace).resolve()}\n'
+                    f'- Workspace: {display_workspace_path(self.config.workspace)}\n'
                     f'- Mode: 作为 niuma 团队中的 Hermes 员工节点执行任务。\n'
                 ),
                 'capabilities': capabilities,
@@ -1203,7 +1216,7 @@ def create_server(config: HermesNodeConfig) -> ThreadingHTTPServer:
 def main() -> None:
     config = HermesNodeConfig.load()
     server = create_server(config)
-    print(f'[HermesNode] Listening on http://{config.host}:{config.port}/ workspace={Path(config.workspace).resolve()}')
+    print(f'[HermesNode] Listening on http://{config.host}:{config.port}/ workspace={display_workspace_path(config.workspace)}')
     server.serve_forever()
 
 

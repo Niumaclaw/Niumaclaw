@@ -62,15 +62,15 @@
         @media (min-width: 900px) {
             .header-container {
                 flex-direction: row;
-                align-items: stretch;
+                align-items: flex-start;
             }
         }
         .header-left {
-            flex: 0 0 auto;
-            min-width: 350px;
+            flex: 1 1 0;
+            min-width: 0;
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: flex-start;
         }
         .header-left h1 {
             margin: 0 0 8px 0;
@@ -84,18 +84,46 @@
             color: #5c4e40;
             font-weight: 600;
         }
+        #controlPlaneOverviewStrip {
+            --overview-columns: 3;
+            grid-template-columns: repeat(var(--overview-columns), minmax(118px, 156px)) !important;
+            justify-content: start;
+        }
+        #controlPlaneOverviewStrip > div {
+            min-height: 48px;
+            padding: 8px 10px !important;
+        }
 
 
         .guide-right {
-            flex: 1;
+            flex: 1 1 0;
+            box-sizing: border-box;
+            align-self: flex-start;
             background: rgba(255, 255, 255, 0.6);
             border-radius: 12px;
             padding: 15px 20px;
-            max-height: 180px;
+            min-width: 0;
+            min-height: 0;
+            max-height: var(--guide-panel-height, none);
             overflow-y: auto;
+            overscroll-behavior: contain;
             border: 1px solid rgba(255, 255, 255, 0.9);
             box-shadow: inset 0 2px 6px rgba(0,0,0,0.05);
             text-align: left;
+        }
+        @media (max-width: 899px) {
+            .header-left,
+            .guide-right {
+                width: 100%;
+            }
+            #controlPlaneOverviewStrip {
+                --overview-columns: 2;
+            }
+        }
+        @media (max-width: 520px) {
+            #controlPlaneOverviewStrip {
+                --overview-columns: 1;
+            }
         }
         .guide-right::-webkit-scrollbar { width: 6px; }
         .guide-right::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 3px; }
@@ -129,6 +157,7 @@
 .btn-create   { background: linear-gradient(135deg, #4a3f35, #2c251f); box-shadow: 0 4px 10px rgba(44, 37, 31, 0.3); }
 .btn-deploy   { background: linear-gradient(135deg, #16a085, #27ae60); box-shadow: 0 4px 10px rgba(39, 174, 96, 0.3); }
 .btn-board    { background: linear-gradient(135deg, #2980b9, #8e44ad); box-shadow: 0 4px 10px rgba(41, 128, 185, 0.3); }
+.btn-demo     { background: linear-gradient(135deg, #0f766e, #14b8a6); box-shadow: 0 4px 10px rgba(20, 184, 166, 0.3); }
 .btn-sop      { background: linear-gradient(135deg, #34495e, #2c3e50); box-shadow: 0 4px 10px rgba(44, 62, 80, 0.3); }
 
 .btn-boss     { background: linear-gradient(135deg, #27ae60, #2ecc71); box-shadow: 0 4px 10px rgba(39, 174, 96, 0.3); }
@@ -139,8 +168,8 @@
     display: flex;
     flex-direction: column;
     gap: 12px; 
-    margin-top: auto; 
-    padding-top: 15px;
+    margin-top: 0; 
+    padding-top: 4px;
 }
 .btn-row {
     display: flex;
@@ -957,10 +986,29 @@
 .task-row:hover { background: #fafafa; }
 .task-title { font-size: 0.9em; color: #334155; flex: 1; padding-right: 15px; font-weight: 500; }
 .task-badges { display: flex; gap: 8px; align-items: center; font-size: 0.75em; flex-shrink: 0; }
-.board-task-card { gap: 10px; }
+.board-delivery-overview { display:grid; grid-template-columns:repeat(5, minmax(110px, 1fr)); gap:10px; margin: 0 0 12px; }
+.board-delivery-stat { border:1px solid #dbeafe; border-radius:10px; background:#fff; padding:10px 12px; }
+.board-delivery-stat span { display:block; color:#64748b; font-size:12px; font-weight:700; }
+.board-delivery-stat strong { display:block; color:#0f172a; font-size:20px; margin-top:2px; }
+.board-task-card { gap: 10px; border:1px solid #e2e8f0; border-radius:12px; padding:12px !important; margin-top:10px; background:#fff; box-shadow:0 6px 16px rgba(15,23,42,0.04); }
+.task-row.board-task-card { border-bottom:none; }
 .board-task-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; width:100%; }
+.board-task-main { min-width:0; flex:1; display:flex; flex-direction:column; gap:7px; }
 .board-task-title-text { padding-right:0; line-height:1.5; min-width:0; }
-.board-task-delivery-grid { display:grid; grid-template-columns:minmax(0, 1.35fr) minmax(240px, 0.8fr); gap:10px; width:100%; }
+.board-task-stage-line { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.board-task-stage-pill { display:inline-flex; align-items:center; gap:4px; padding:4px 8px; border-radius:999px; background:#f8fafc; border:1px solid #e2e8f0; color:#475569; font-size:11px; font-weight:700; }
+.board-task-stage-pill.primary { background:#eff6ff; border-color:#bfdbfe; color:#1d4ed8; }
+.board-task-stage-pill.done { background:#ecfdf5; border-color:#bbf7d0; color:#047857; }
+.board-task-stage-pill.warning { background:#fffbeb; border-color:#fde68a; color:#b45309; }
+.board-task-stage-pill.error { background:#fff1f2; border-color:#fecdd3; color:#be123c; }
+.board-task-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end; flex-shrink:0; }
+.board-task-primary-btn, .board-task-secondary-btn { padding:7px 12px; border:none; border-radius:999px; cursor:pointer; font-size:12px; font-weight:800; white-space:nowrap; }
+.board-task-primary-btn { color:#fff; background:linear-gradient(135deg,#2563eb,#0ea5e9); box-shadow:0 8px 16px rgba(37,99,235,0.18); }
+.board-task-primary-btn.warning { color:#92400e; background:#fef3c7; box-shadow:none; }
+.board-task-primary-btn.neutral { color:#475569; background:#e2e8f0; box-shadow:none; cursor:default; }
+.board-task-secondary-btn { color:#1d4ed8; background:#eff6ff; }
+.board-task-secondary-btn.danger { color:#dc2626; background:#fee2e2; }
+.board-task-delivery-grid { display:grid; grid-template-columns:minmax(0, 1fr) minmax(220px, 0.72fr); gap:10px; width:100%; }
 .board-task-delivery-card { border:1px solid #dbeafe; border-radius:10px; background:linear-gradient(180deg,#ffffff,#f8fbff); padding:12px; min-width:0; }
 .board-task-delivery-card.summary { border-color:#bbf7d0; background:linear-gradient(180deg,#f0fdf4,#ffffff); }
 .board-task-delivery-card.summary.error { border-color:#fecaca; background:linear-gradient(180deg,#fef2f2,#ffffff); }
@@ -987,7 +1035,9 @@
 .board-task-inline-meta { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:8px; }
 .board-task-inline-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px; }
 @media (max-width: 780px) {
+    .board-delivery-overview { grid-template-columns:repeat(2, minmax(0, 1fr)); }
     .board-task-head { flex-direction:column; align-items:stretch; }
+    .board-task-actions { justify-content:flex-start; }
     .task-badges { flex-wrap:wrap; }
     .board-task-delivery-grid { grid-template-columns:1fr; }
 }
@@ -995,6 +1045,10 @@
 .desk-health-badge, .desk-budget-badge, .desk-task-badge, .desk-recommendation-badge { padding:4px 8px; border-radius:999px; font-size:10px; font-weight:800; background:rgba(255,255,255,0.92); color:#334155; border:1px solid rgba(148,163,184,0.24); box-shadow:0 4px 10px rgba(15,23,42,0.08); }
 .desk-health-badge.running { background:#dbeafe; color:#1d4ed8; }
 .desk-health-badge.error { background:#fee2e2; color:#b91c1c; }
+.desk-health-badge.offline { background:#fee2e2; color:#b91c1c; border-color:#fecaca; cursor:pointer; }
+.desk-node-action { padding:4px 8px; border:none; border-radius:999px; background:#eff6ff; color:#1d4ed8; font-size:10px; font-weight:800; cursor:pointer; box-shadow:0 4px 10px rgba(15,23,42,0.08); }
+.desk-node-action.warning { background:#fef3c7; color:#92400e; }
+.desk-node-action.neutral { background:#f1f5f9; color:#475569; }
 .desk-budget-badge.warning { background:#fef3c7; color:#92400e; }
 .desk-budget-badge.hard-stop { background:#fee2e2; color:#b91c1c; }
 .desk-task-badge.warning { background:#fffbeb; color:#b45309; }
@@ -1240,7 +1294,7 @@
             </div>
             <p>欢迎回来，这是您的团队。点击工位可以单独派单。</p>
             <div id="deskAlertSummaryBar" onclick="jumpToDeskAlerts()" style="display:none; margin: 6px 0 12px; padding:10px 12px; border-radius:10px; background:#fef2f2; color:#b91c1c; font-size:13px; font-weight:bold; border:1px solid #fecaca; cursor:pointer;">当前没有异常告警</div>
-            <div id="controlPlaneOverviewStrip" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:10px; margin: 0 0 14px;">
+            <div id="controlPlaneOverviewStrip" style="display:grid; grid-template-columns:repeat(var(--overview-columns, 3), minmax(118px, 156px)); gap:10px; margin: 0 0 14px;">
                 <div style="padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.82); border:1px solid rgba(148,163,184,0.28);"><div style="font-size:11px; color:#64748b;">员工数</div><div style="font-size:18px; font-weight:800; color:#0f172a;">0</div></div>
                 <div style="padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.82); border:1px solid rgba(148,163,184,0.28);"><div style="font-size:11px; color:#64748b;">活跃任务</div><div style="font-size:18px; font-weight:800; color:#0f172a;">0</div></div>
                 <div style="padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.82); border:1px solid rgba(148,163,184,0.28);"><div style="font-size:11px; color:#64748b;">阻塞任务</div><div style="font-size:18px; font-weight:800; color:#0f172a;">0</div></div>
@@ -1254,6 +1308,7 @@
                     <button onclick="openCreateCompanyModal()" class="top-btn btn-create">🚀 一键开设公司</button>
                     <button onclick="openCeoModal()" class="top-btn btn-deploy">🧠 部署战略项目</button>
                     <button onclick="openBoardModal()" class="top-btn btn-board">📊 项目看板</button>
+                    <button onclick="runDemoWebsiteTask(this)" class="top-btn btn-demo">🧪 示例链路</button>
                     <button onclick="openRoutineModal()" class="top-btn btn-board">⏰ 周期任务 <span id="deskAlertBadge" style="display:none; margin-left:6px; padding:2px 8px; border-radius:999px; background:#dc2626; color:#fff; font-size:11px; font-weight:800;">0</span></button>
                     <button onclick="openSopModal()" class="top-btn btn-sop">📐 公司制度/SOP</button>
                 </div>
@@ -1575,7 +1630,7 @@
     <div id="boardModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:10050; align-items:center; justify-content:center; backdrop-filter:blur(5px);">
         <div style="background:#f8fafc; padding:25px; border-radius:15px; height:85vh; width:85vw; display:flex; flex-direction:column; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
             <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px;">
-                <h3 style="margin:0; color:#1e293b; display: flex; align-items: center; gap: 8px;">📊 项目看板: <span id="boardProjectName" style="color:#3b82f6;">正在同步进度...</span></h3>
+                <h3 style="margin:0; color:#1e293b; display: flex; align-items: center; gap: 8px;">📦 交付中心: <span id="boardProjectName" style="color:#3b82f6;">正在同步进度...</span></h3>
                 <div style="display:flex; gap: 10px;">
                     <button onclick="deleteProject()" style="padding:6px 12px; background:#e74c3c; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:bold;">🗑 清空</button>
                     <button onclick="closeModal('boardModal')" style="background:none; border:none; font-size:1.4em; cursor:pointer; color:#94a3b8;">✕</button>
@@ -1647,6 +1702,8 @@
         let routineManagerCache = [];
         let routineHistoryCache = [];
         let heartbeatCache = {};
+        let nodeDiagnosisCache = {};
+        let nodeDiagnosisLastFetchedAt = 0;
         let currentDeskAlertContext = null;
         
         function closeModal(id) {
@@ -3522,6 +3579,26 @@ function adjustGridColumns() {
 }
 window.addEventListener('resize', adjustGridColumns);
 
+function syncGuideRightHeight() {
+    const headerLeft = document.querySelector('.header-left');
+    const guideRight = document.querySelector('.guide-right');
+    if (!headerLeft || !guideRight) return;
+
+    if (window.matchMedia('(min-width: 900px)').matches) {
+        const leftHeight = Math.ceil(headerLeft.scrollHeight || headerLeft.getBoundingClientRect().height);
+        const panelHeight = Math.max(260, leftHeight);
+        guideRight.style.height = `${panelHeight}px`;
+        guideRight.style.maxHeight = `${panelHeight}px`;
+        guideRight.style.overflowY = 'auto';
+    } else {
+        guideRight.style.height = '';
+        guideRight.style.maxHeight = '';
+        guideRight.style.overflowY = '';
+    }
+}
+
+window.addEventListener('resize', syncGuideRightHeight);
+
 function createDeskElement() {
     const desk = document.createElement('div');
     desk.className = 'company-card empty-desk';
@@ -3594,6 +3671,42 @@ async function saveSopConfig() {
 async function openBoardModal() {
     document.getElementById('boardModal').style.display = 'flex';
     await refreshBoard();
+}
+
+async function runDemoWebsiteTask(trigger) {
+    const originalText = trigger?.innerHTML;
+    if (trigger) {
+        trigger.disabled = true;
+        trigger.innerHTML = '生成中...';
+    }
+    try {
+        const res = await fetch('/api/demo/website-task', { method: 'POST' });
+        const rawText = await res.text();
+        const data = parseLooseJsonObjectFromText(rawText) || {};
+        if (!res.ok) {
+            throw new Error(data?.message || rawText || '示例任务生成失败。');
+        }
+
+        await refreshBoard();
+        const modal = document.getElementById('boardModal');
+        if (modal) modal.style.display = 'flex';
+        showAppDialog({
+            tone: 'success',
+            title: '示例链路已生成',
+            message: `已生成 PRD -> 原型 -> UI/UX -> 开发 -> 测试 -> 本地链接完整链路。预览地址：${data.preview_url || data.previewUrl || '打开看板查看交付物'}`
+        });
+    } catch (e) {
+        showAppDialog({
+            tone: 'error',
+            title: '示例链路生成失败',
+            message: e?.message || String(e)
+        });
+    } finally {
+        if (trigger) {
+            trigger.disabled = false;
+            trigger.innerHTML = originalText || '🧪 示例链路';
+        }
+    }
 }
 
 function getBoardTaskValue(task, key) {
@@ -3842,6 +3955,77 @@ function getDeskHealthSummary(heartbeatStatus, heartbeatMessage) {
     };
 }
 
+async function refreshNodeDiagnosis(force = false) {
+    if (!force && Date.now() - nodeDiagnosisLastFetchedAt < 10000) return nodeDiagnosisCache || {};
+    try {
+        const res = await fetch('/api/nodes/diagnose');
+        nodeDiagnosisCache = res.ok ? await res.json() : {};
+        nodeDiagnosisLastFetchedAt = Date.now();
+    } catch (_) {
+        nodeDiagnosisCache = {};
+    }
+    return nodeDiagnosisCache;
+}
+
+function showNodeDoctor(name) {
+    const diagnosis = nodeDiagnosisCache?.[name] || {};
+    showAppDialog({
+        tone: diagnosis.online ? 'success' : 'warning',
+        title: `${name} 节点医生`,
+        message: [
+            `节点地址：${diagnosis.url || '未配置'}`,
+            `状态：${diagnosis.online ? '在线' : '离线/异常'}`,
+            `原因：${diagnosis.reason || '暂无诊断信息'}`,
+            `建议：${diagnosis.suggestion || '点击重新检测，或打开日志查看详情。'}`,
+            `日志：${diagnosis.logHint || '暂无'}`
+        ].join('\n')
+    });
+}
+
+async function recheckNodeDiagnosis(name) {
+    await refreshNodeDiagnosis(true);
+    showNodeDoctor(name);
+    renderAllDeskControlBadgesFromCache();
+}
+
+async function restartNode(name) {
+    const res = await fetch('/api/nodes/restart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    });
+    const data = await res.json().catch(() => ({}));
+    showAppDialog({
+        tone: res.ok ? 'success' : 'error',
+        title: res.ok ? '已发起重启' : '重启失败',
+        message: data.message || '节点重启请求已返回。'
+    });
+    setTimeout(() => recheckNodeDiagnosis(name).catch(() => {}), 4000);
+}
+
+async function openNodeLog(name) {
+    const res = await fetch('/api/nodes/open-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    });
+    const data = await res.json().catch(() => ({}));
+    showAppDialog({
+        tone: res.ok ? 'success' : 'error',
+        title: res.ok ? '已打开日志' : '打开日志失败',
+        message: data.message || '日志操作已返回。'
+    });
+}
+
+function renderAllDeskControlBadgesFromCache() {
+    document.querySelectorAll('.company-card.at-work').forEach(desk => {
+        const name = desk.querySelector('.id-card-name')?.innerText || desk.dataset.employeeName || '';
+        if (!name) return;
+        const runs = window.agentRunCacheByEmployee?.[name] || [];
+        applyDeskControlPlaneBadges(desk, name, runs, heartbeatCache || {});
+    });
+}
+
 function buildDeskControlPlaneBadges(empName, runs = [], heartbeats = {}) {
     const configNode = window.teamConfig?.PeerNodes?.[empName] || {};
     const budgetMonthly = Number(configNode.BudgetMonthly || configNode.budgetMonthly || 0);
@@ -3851,10 +4035,14 @@ function buildDeskControlPlaneBadges(empName, runs = [], heartbeats = {}) {
     const healthStatus = heartbeat.last_status || heartbeat.LastStatus || 'healthy';
     const healthMessage = heartbeat.last_message || heartbeat.LastMessage || '点击查看控制卡';
     const healthSummary = getDeskHealthSummary(healthStatus, healthMessage);
+    const diagnosis = nodeDiagnosisCache?.[empName];
     const taskSummary = buildDeskTaskPostureSummary(empName);
     const recommendationBadge = buildDeskGovernanceRecommendationBadge(empName, taskSummary);
+    const nodeDoctorHtml = diagnosis && !diagnosis.online
+        ? `<button type="button" class="desk-health-badge offline" title="${escapeHtml(diagnosis.reason || '节点离线')}" onclick="event.stopPropagation(); showNodeDoctor('${escapeJsSingleQuotedString(empName)}')">节点离线</button><button type="button" class="desk-node-action" onclick="event.stopPropagation(); recheckNodeDiagnosis('${escapeJsSingleQuotedString(empName)}').catch(() => {})">重试</button><button type="button" class="desk-node-action warning" onclick="event.stopPropagation(); restartNode('${escapeJsSingleQuotedString(empName)}').catch(() => {})">重启</button><button type="button" class="desk-node-action neutral" onclick="event.stopPropagation(); openNodeLog('${escapeJsSingleQuotedString(empName)}').catch(() => {})">日志</button>`
+        : '';
     return {
-        healthHtml: `<span class="desk-health-badge ${escapeHtml(healthSummary.tone)}" title="${escapeHtml(healthSummary.title)}">健康状态：${escapeHtml(healthSummary.label)}</span>`,
+        healthHtml: nodeDoctorHtml || `<span class="desk-health-badge ${escapeHtml(healthSummary.tone)}" title="${escapeHtml(diagnosis?.reason || healthSummary.title)}">健康状态：${escapeHtml(diagnosis?.online ? '在线' : healthSummary.label)}</span>`,
         budgetHtml: `<span class="desk-budget-badge ${escapeHtml(budgetTone)}" title="点击查看控制卡">预算风险：${escapeHtml(budgetTone === 'hard-stop' ? '高' : budgetTone === 'warning' ? '中' : '低')}</span>`,
         taskHtml: `<button type="button" class="desk-task-badge ${escapeHtml(taskSummary.tone)}" title="${escapeHtml(taskSummary.title)}" onclick="event.stopPropagation(); openDeskTaskFocusPanel('${escapeJsSingleQuotedString(empName)}')">待审核任务：${escapeHtml(String(taskSummary.inReviewCount))} / 阻塞任务：${escapeHtml(String(taskSummary.blockedCount))}</button>`,
         recommendationHtml: recommendationBadge
@@ -6925,6 +7113,118 @@ function renderBoardTaskDeliveryPanel(task, statusClass, statusText) {
         </div>`;
 }
 
+const BOARD_TASK_PHASE_LABELS = {
+    prd: 'PRD',
+    prototype: '页面原型',
+    wireframe: '页面原型',
+    uiux: 'UI/UX',
+    ui: 'UI/UX',
+    frontend: '前端开发',
+    backend: '本地服务',
+    test: '测试报告',
+    qa: '测试报告',
+    preview: '本地链接',
+    delivery: '最终交付'
+};
+
+function getBoardTaskPhaseLabel(task) {
+    const phase = String(task?.phase || task?.Phase || '').trim();
+    if (!phase) return '未分阶段';
+    return BOARD_TASK_PHASE_LABELS[phase.toLowerCase()] || phase;
+}
+
+function getBoardTaskProgressLabel(statusClass) {
+    const normalized = String(statusClass || 'todo').toLowerCase();
+    if (normalized === 'done') return { label: '已完成', tone: 'done' };
+    if (normalized === 'doing' || normalized === 'in_progress') return { label: '执行中', tone: 'primary' };
+    if (normalized === 'in_review') return { label: '待审核', tone: 'warning' };
+    if (normalized === 'blocked' || normalized === 'failed') return { label: '需处理', tone: 'error' };
+    if (normalized === 'cancelled') return { label: '已取消', tone: 'warning' };
+    if (normalized === 'backlog') return { label: '等待前置', tone: 'warning' };
+    return { label: '待开始', tone: 'primary' };
+}
+
+function renderBoardTaskStageSummary(task, statusClass, statusText) {
+    const phaseLabel = getBoardTaskPhaseLabel(task);
+    const progress = getBoardTaskProgressLabel(statusClass);
+    const assignee = String(task?.assignee || task?.Assignee || '').trim() || '待认领';
+    const updateTime = String(task?.update_time || task?.UpdateTime || '').substring(5, 16) || '暂无更新';
+    const deliverable = String(task?.deliverable || task?.Deliverable || '').trim();
+    const gate = String(task?.gate || task?.Gate || '').trim();
+    const compactDeliverable = deliverable ? (deliverable.length > 42 ? `${deliverable.slice(0, 42)}...` : deliverable) : '阶段完成后生成';
+    const compactGate = gate ? (gate.length > 42 ? `${gate.slice(0, 42)}...` : gate) : '';
+    return `
+        <div class="board-task-stage-line">
+            <span class="board-task-stage-pill primary">当前阶段：${escapeHtml(phaseLabel)}</span>
+            <span class="board-task-stage-pill ${escapeHtml(progress.tone)}">进度：${escapeHtml(progress.label)}</span>
+            <span class="board-task-stage-pill">负责人：${escapeHtml(assignee)}</span>
+            <span class="board-task-stage-pill">更新：${escapeHtml(updateTime)}</span>
+            <span class="board-task-stage-pill">目标交付：${escapeHtml(compactDeliverable)}</span>
+            ${compactGate ? `<span class="board-task-stage-pill">通过条件：${escapeHtml(compactGate)}</span>` : ''}
+        </div>`;
+}
+
+function renderBoardTaskPrimaryActions(projectNameRaw, task, statusClass, options = {}) {
+    const taskId = String(task?.id || task?.Id || '');
+    const employeeName = String(task?.assignee || task?.Assignee || '').trim();
+    const canStart = !!options.canStart;
+    const canRetry = !!options.canRetry;
+    const isRunning = statusClass === 'doing' || statusClass === 'in_progress';
+    const isDone = statusClass === 'done';
+    if (canRetry) {
+        return `<div class="board-task-actions"><button type="button" class="board-task-primary-btn ${canStart ? '' : 'warning'}" onclick="event.stopPropagation(); retryBoardTask('${escapeJsSingleQuotedString(projectNameRaw)}', '${escapeJsSingleQuotedString(taskId)}');">${canStart ? '开始执行' : '重新尝试'}</button></div>`;
+    }
+    if (isRunning && taskId && employeeName) {
+        return `<div class="board-task-actions"><button type="button" class="board-task-secondary-btn" onclick="event.stopPropagation(); openBoardTaskLatestRun('${escapeJsSingleQuotedString(taskId)}', '${escapeJsSingleQuotedString(employeeName)}').catch(err => showAppDialog({ title: '打开运行失败', message: err.message || '最近运行打开失败', tone: 'error' }))">查看运行</button></div>`;
+    }
+    if (isDone) {
+        return `<div class="board-task-actions"><span class="board-task-primary-btn neutral">已交付</span></div>`;
+    }
+    return `<div class="board-task-actions"><span class="board-task-primary-btn neutral">等待推进</span></div>`;
+}
+
+function renderBoardTaskMoreActionsDetails(task, projectNameRaw, statusClass) {
+    const taskId = String(task?.id || task?.Id || '');
+    const employeeName = String(task?.assignee || task?.Assignee || '').trim();
+    const canDelete = !['doing', 'in_progress'].includes(String(statusClass || '').toLowerCase()) && !!taskId;
+    const buttons = [
+        employeeName ? `<button type="button" class="board-task-secondary-btn" onclick="event.stopPropagation(); jumpToEmployeeControlCard('${escapeJsSingleQuotedString(employeeName)}');">查看负责人工位</button>` : '',
+        canDelete ? `<button type="button" class="board-task-secondary-btn danger" onclick="event.stopPropagation(); deleteBoardTask('${escapeJsSingleQuotedString(projectNameRaw)}', '${escapeJsSingleQuotedString(taskId)}');">删除任务</button>` : ''
+    ].filter(Boolean).join('');
+    if (!buttons) return '';
+    return renderBoardTaskDetailSection('更多操作', `<div class="board-task-inline-actions">${buttons}</div>`, '可选');
+}
+
+function buildBoardDeliveryStats(projects) {
+    const stats = { projects: Array.isArray(projects) ? projects.length : 0, tasks: 0, done: 0, active: 0, blocked: 0, artifacts: 0 };
+    (projects || []).forEach(project => {
+        const tasks = Array.isArray(project?.tasks || project?.Tasks) ? (project.tasks || project.Tasks) : [];
+        tasks.forEach(task => {
+            const status = String(task?.status || task?.Status || 'todo').toLowerCase();
+            const result = task?.result || task?.Result || '';
+            stats.tasks += 1;
+            if (status === 'done') stats.done += 1;
+            if (['doing', 'in_progress', 'in_review'].includes(status)) stats.active += 1;
+            if (['blocked', 'failed'].includes(status)) stats.blocked += 1;
+            stats.artifacts += collectBoardTaskDeliverables(task, result).length;
+        });
+    });
+    return stats;
+}
+
+function renderBoardDeliveryOverview(projects) {
+    const stats = buildBoardDeliveryStats(projects);
+    const pending = Math.max(0, stats.tasks - stats.done - stats.active - stats.blocked);
+    return `
+        <div class="board-delivery-overview">
+            <div class="board-delivery-stat"><span>项目</span><strong>${escapeHtml(String(stats.projects))}</strong></div>
+            <div class="board-delivery-stat"><span>任务</span><strong>${escapeHtml(String(stats.tasks))}</strong></div>
+            <div class="board-delivery-stat"><span>已完成</span><strong>${escapeHtml(String(stats.done))}</strong></div>
+            <div class="board-delivery-stat"><span>待处理</span><strong>${escapeHtml(String(pending + stats.blocked))}</strong></div>
+            <div class="board-delivery-stat"><span>交付物</span><strong>${escapeHtml(String(stats.artifacts))}</strong></div>
+        </div>`;
+}
+
 function renderBoardTaskDetailSection(title, bodyHtml, metaText = '') {
     const body = String(bodyHtml || '').trim();
     if (!body) return '';
@@ -7519,6 +7819,7 @@ async function refreshBoard() {
 
         if (projects && projects.length > 0) {
             document.getElementById('boardProjectName').innerText = `共 ${projects.length} 个并行项目`;
+            listContainer.innerHTML = renderBoardDeliveryOverview(projects);
 
             projects.forEach((project, index) => {
                 const projName = escapeHtml(project.project_name || project.ProjectName || '未命名项目');
@@ -7542,37 +7843,28 @@ async function refreshBoard() {
                         if (statusClass === 'failed') statusText = '失败 (FAILED)';
                         if (statusClass === 'cancelled') statusText = '已取消 (CANCELLED)';
 
-                        const updateTime = String(task.update_time || task.UpdateTime || '').substring(5, 16);
-                        const taskResult = task.result || task.Result;
                         const taskId = String(task.id || task.Id || '');
                         const projectNameRaw = String(project.project_name || project.ProjectName || '');
                         const isFailedResult = statusClass === 'failed' || statusClass === 'blocked';
                         const isCancelledResult = statusClass === 'cancelled';
                         const canStart = ['todo', 'backlog'].includes(statusClass) && !!taskId && !!(task.assignee || task.Assignee);
                         const canRetry = (canStart || isFailedResult || isCancelledResult) && !!taskId && !!(task.assignee || task.Assignee);
-                        const canDelete = statusClass !== 'doing' && !!taskId;
-                        const retryButtonHtml = canRetry
-                            ? `<button type="button" onclick="event.stopPropagation(); retryBoardTask('${escapeJsSingleQuotedString(projectNameRaw)}', '${escapeJsSingleQuotedString(taskId)}');" style="padding:7px 12px; border:none; border-radius:999px; cursor:pointer; font-size:12px; font-weight:700; color:#b45309; background:rgba(245,158,11,0.14); white-space:nowrap;">${canStart ? '开始执行' : '重新尝试'}</button>`
-                            : '';
-                        const deleteButtonHtml = canDelete
-                            ? `<button type="button" onclick="event.stopPropagation(); deleteBoardTask('${escapeJsSingleQuotedString(projectNameRaw)}', '${escapeJsSingleQuotedString(taskId)}');" style="padding:7px 12px; border:none; border-radius:999px; cursor:pointer; font-size:12px; font-weight:700; color:#dc2626; background:rgba(239,68,68,0.1); white-space:nowrap;">删除任务</button>`
-                            : '';
 
                         const deliveryHtml = renderBoardTaskDeliveryPanel(task, statusClass, statusText);
                         const controlPlaneSummaryHtml = buildBoardTaskControlPlaneSummary(task, project);
+                        const primaryActionsHtml = renderBoardTaskPrimaryActions(projectNameRaw, task, statusClass, { canStart, canRetry });
+                        const moreActionsHtml = renderBoardTaskMoreActionsDetails(task, projectNameRaw, statusClass);
                         tasksHtml += `
                         <div class="task-row board-task-card" data-task-id="${escapeHtml(taskId)}" data-project-name="${escapeHtml(projectNameRaw)}" style="display:flex; flex-direction:column; align-items:stretch; padding: 12px 0;">
                             <div class="board-task-head">
-                                <div class="task-title board-task-title-text">${escapeHtml(task.title || task.Title)}</div>
-                                <div class="task-badges">
-                                    ${retryButtonHtml}
-                                    ${deleteButtonHtml}
-                                    <span class="badge assignee">${escapeHtml(task.assignee || task.Assignee || '待认领')}</span>
-                                    <span class="badge ${statusClass}">${statusText}</span>
-                                    <span style="color:#94a3b8; width: 85px; text-align: right;">${escapeHtml(updateTime)}</span>
+                                <div class="board-task-main">
+                                    <div class="task-title board-task-title-text">${escapeHtml(task.title || task.Title)}</div>
+                                    ${renderBoardTaskStageSummary(task, statusClass, statusText)}
                                 </div>
+                                ${primaryActionsHtml}
                             </div>
                             ${deliveryHtml}
+                            ${moreActionsHtml}
                             ${controlPlaneSummaryHtml}
                         </div>`;
                     });
@@ -7612,10 +7904,10 @@ async function refreshBoard() {
                     </div>
                 </div>`;
 
-                listContainer.innerHTML += projHtml;
+                listContainer.insertAdjacentHTML('beforeend', projHtml);
             });
         } else {
-            document.getElementById('boardProjectName').innerText = '项目看板：暂无并行项目';
+            document.getElementById('boardProjectName').innerText = '暂无并行项目';
             listContainer.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:50px; background:#fff; border-radius:10px; border:1px dashed #cbd5e1;">CEO 还没有发布新的项目任务。</div>';
         }
 
@@ -7719,6 +8011,7 @@ async function refreshControlPlaneOverview() {
                         : 'background:rgba(255,255,255,0.82); border-color:rgba(148,163,184,0.28); color:#0f172a;';
             return `<div style="padding:10px 12px; border-radius:12px; border:1px solid; ${toneStyle}"><div style="font-size:11px; color:#64748b;">${escapeHtml(metric.label)}</div><div style="font-size:18px; font-weight:800; margin-top:2px;">${escapeHtml(String(metric.value))}</div></div>`;
         }).join('');
+        requestAnimationFrame(syncGuideRightHeight);
     } catch (e) {
         strip.innerHTML = '<div style="padding:10px 12px; border-radius:12px; background:#fff7ed; border:1px solid #fdba74; color:#9a3412;">控制平面总览暂时不可用</div>';
     }
@@ -7769,6 +8062,7 @@ window.addEventListener('load', async () => {
         console.error('加载团队配置失败：', e);
     }
     await refreshControlPlaneOverview();
+    requestAnimationFrame(syncGuideRightHeight);
 });
 
 function escapeHtml(s) {
@@ -10906,6 +11200,7 @@ setInterval(async () => {
         ]);
         alertPayload = alertRes.ok ? await alertRes.json() : [];
         heartbeatPayload = heartbeatRes.ok ? await heartbeatRes.json() : {};
+        await refreshNodeDiagnosis(false);
         heartbeatCache = heartbeatPayload || {};
     } catch (_) {
         alertPayload = [];

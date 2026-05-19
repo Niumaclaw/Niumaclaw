@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -50,6 +51,8 @@ namespace NiumaClaw.Team;
 [JsonSerializable(typeof(AgentProfilePayload))]
 [JsonSerializable(typeof(AgentRunPayload))]
 [JsonSerializable(typeof(List<AgentRunPayload>))]
+[JsonSerializable(typeof(NodeDiagnosis))]
+[JsonSerializable(typeof(Dictionary<string, NodeDiagnosis>))]
 
 internal partial class AppJsonContext : JsonSerializerContext { }
 public class CreateCompanyReq
@@ -175,6 +178,20 @@ public class RoutineAlertPayload
     [JsonPropertyName("last_alert_at")] public string? LastAlertAt { get; set; }
     [JsonPropertyName("last_seen_at")] public string? LastSeenAt { get; set; }
     [JsonPropertyName("message")] public string Message { get; set; } = "";
+}
+public class NodeDiagnosis
+{
+    [JsonPropertyName("name")] public string Name { get; set; } = "";
+    [JsonPropertyName("url")] public string Url { get; set; } = "";
+    [JsonPropertyName("adapterType")] public string AdapterType { get; set; } = "";
+    [JsonPropertyName("online")] public bool Online { get; set; }
+    [JsonPropertyName("configOk")] public bool ConfigOk { get; set; }
+    [JsonPropertyName("statusOk")] public bool StatusOk { get; set; }
+    [JsonPropertyName("reason")] public string Reason { get; set; } = "";
+    [JsonPropertyName("suggestion")] public string Suggestion { get; set; } = "";
+    [JsonPropertyName("lastCheckedAt")] public string LastCheckedAt { get; set; } = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+    [JsonPropertyName("logHint")] public string LogHint { get; set; } = "";
+    [JsonPropertyName("restartHint")] public string RestartHint { get; set; } = "";
 }
 public class AgentHealthPayload
 {
@@ -452,6 +469,13 @@ class Program
             var status = NormalizeTaskStatus(task.Status);
             if (status is "done" or "in_progress" or "in_review" or "cancelled") continue;
             if (!task.DependsOn.All(dep => doneIds.Contains(dep))) continue;
+            if (!CanStartBoardTask(task, out var gateReason))
+            {
+                task.Status = "backlog";
+                task.BlockedReason = gateReason;
+                TouchTask(task);
+                continue;
+            }
 
             task.Status = "todo";
             task.BlockedReason = null;
@@ -490,12 +514,38 @@ class Program
 
     private static async Task DispatchReadyBoardTasksAsync(ProjectBoard project, IReadOnlyList<ProjectTask> tasks, string currentTeamUrl)
     {
-        var readyTasks = tasks
-            .Where(task => task is not null
-                && !string.IsNullOrWhiteSpace(task.Id)
-                && !string.IsNullOrWhiteSpace(task.Assignee)
-                && NormalizeTaskStatus(task.Status) == "todo")
-            .ToList();
+        List<ProjectTask> readyTasks = [];
+        lock (_configSyncRoot)
+        {
+            var gateChanged = false;
+            foreach (var task in tasks)
+            {
+                if (task is null
+                    || string.IsNullOrWhiteSpace(task.Id)
+                    || string.IsNullOrWhiteSpace(task.Assignee)
+                    || NormalizeTaskStatus(task.Status) != "todo")
+                {
+                    continue;
+                }
+                if (CanStartBoardTask(task, out var gateReason))
+                {
+                    readyTasks.Add(task);
+                    continue;
+                }
+                task.Status = "backlog";
+                task.BlockedReason = gateReason;
+                task.Comments ??= [];
+                task.Comments.Add(new TaskComment
+                {
+                    Author = "system",
+                    Content = gateReason,
+                    Timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                });
+                TouchTask(task);
+                gateChanged = true;
+            }
+            if (gateChanged) SaveConfigLocked();
+        }
         if (readyTasks.Count == 0) return;
 
         var taskJsonLines = string.Join(",\n", readyTasks.Select(task =>
@@ -572,6 +622,757 @@ class Program
             "cancelled" => "已取消",
             _ => raw ?? "未知状态"
         };
+    }
+
+    private static readonly Dictionary<string, string[]> WebsiteStageDeliverables = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["prd"] = ["docs/prd.md"],
+        ["prototype"] = ["docs/prototype.md", "docs/wireframe.md", "prototype.html"],
+        ["wireframe"] = ["docs/prototype.md", "docs/wireframe.md", "prototype.html"],
+        ["uiux"] = ["docs/ui-spec.md"],
+        ["ui"] = ["docs/ui-spec.md"],
+        ["frontend"] = ["index.html", "src/index.html", "public/index.html", "dist/index.html"],
+        ["backend"] = ["docs/local-service.md", "local-service.md"],
+        ["test"] = ["docs/test-report.md", "test-report.md"],
+        ["qa"] = ["docs/test-report.md", "test-report.md"],
+        ["preview"] = ["docs/local-service.md", "local-service.md"]
+    };
+
+    private static readonly Dictionary<string, string[]> WebsiteStagePrerequisites = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["prototype"] = ["prd"],
+        ["wireframe"] = ["prd"],
+        ["uiux"] = ["prototype", "wireframe"],
+        ["ui"] = ["prototype", "wireframe"],
+        ["frontend"] = ["uiux", "ui"],
+        ["backend"] = ["frontend"],
+        ["test"] = ["frontend", "backend"],
+        ["qa"] = ["frontend", "backend"],
+        ["preview"] = ["test", "qa"]
+    };
+
+    private static string NormalizePhaseKey(ProjectTask? task)
+    {
+        return (task?.Phase ?? string.Empty).Trim().ToLowerInvariant();
+    }
+
+    private static bool IsWebsiteStageTask(ProjectTask? task)
+    {
+        var phase = NormalizePhaseKey(task);
+        return phase.Length > 0 && WebsiteStageDeliverables.ContainsKey(phase);
+    }
+
+    private static string GetStageDisplayName(string phase)
+    {
+        return phase.ToLowerInvariant() switch
+        {
+            "prd" => "PRD",
+            "prototype" or "wireframe" => "原型",
+            "uiux" or "ui" => "UI/UX",
+            "frontend" => "前端开发",
+            "backend" => "本地服务",
+            "test" or "qa" => "测试报告",
+            "preview" => "本地链接",
+            _ => phase
+        };
+    }
+
+    private static IEnumerable<string> ExtractDeliverableCandidates(ProjectTask task)
+    {
+        var candidates = new List<string>();
+        var phase = NormalizePhaseKey(task);
+        if (WebsiteStageDeliverables.TryGetValue(phase, out var required))
+        {
+            candidates.AddRange(required);
+        }
+
+        var text = string.Join("\n", new[]
+        {
+            task.Deliverable ?? string.Empty,
+            task.Result ?? string.Empty
+        });
+        foreach (Match match in Regex.Matches(text, @"(?:[A-Za-z]:\\[^\s""'<>`，。,；;)）]+?\.(?:html|md|pdf|docx?|png|jpe?g|gif|webp|mp4)|(?:docs|artifacts|preview|dist|src|public|assets|reports|test-results)[\\/][^\s""'<>`，。,；;)）]+|[\w.-]+\.(?:html|md|pdf|docx?|png|jpe?g|gif|webp|mp4))", RegexOptions.IgnoreCase))
+        {
+            candidates.Add(match.Value);
+        }
+
+        return candidates
+            .Select(item => item.Trim().Trim('"', '\'', '`', '，', '。', '；', ';', ')', '）'))
+            .Where(item => item.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static IEnumerable<string> GetDeliverableSearchRoots(ProjectTask task)
+    {
+        var roots = new List<string>();
+        void AddRoot(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            try
+            {
+                var full = Path.GetFullPath(value);
+                if (Directory.Exists(full) && !roots.Contains(full, StringComparer.OrdinalIgnoreCase))
+                {
+                    roots.Add(full);
+                }
+            }
+            catch { }
+        }
+
+        var cwd = Directory.GetCurrentDirectory();
+        var baseDir = AppContext.BaseDirectory;
+        AddRoot(cwd);
+        AddRoot(baseDir);
+        AddRoot(Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..")));
+        var teamRoot = roots.FirstOrDefault(root => root.EndsWith("NiumaClaw.Team", StringComparison.OrdinalIgnoreCase))
+            ?? roots.FirstOrDefault(root => File.Exists(Path.Combine(root, "NiumaClaw.Team.csproj")));
+        var workspaceRoot = teamRoot is null ? Directory.GetParent(cwd)?.FullName : Directory.GetParent(teamRoot)?.FullName;
+        var localNodeRoot = string.IsNullOrWhiteSpace(workspaceRoot) ? null : Path.Combine(workspaceRoot, "NiumaClaw.LocalNode");
+        var agentWorkspaceRoot = string.IsNullOrWhiteSpace(localNodeRoot) ? null : Path.Combine(localNodeRoot, "agent_workspace");
+        if (!string.IsNullOrWhiteSpace(agentWorkspaceRoot))
+        {
+            if (!string.IsNullOrWhiteSpace(task.Assignee)) AddRoot(Path.Combine(agentWorkspaceRoot, task.Assignee));
+            AddRoot(agentWorkspaceRoot);
+            try
+            {
+                if (Directory.Exists(agentWorkspaceRoot))
+                {
+                    foreach (var child in Directory.GetDirectories(agentWorkspaceRoot))
+                    {
+                        AddRoot(child);
+                    }
+                }
+            }
+            catch { }
+        }
+        AddRoot(localNodeRoot);
+        return roots;
+    }
+
+    private static bool IsIgnoredDeliverablePath(string path)
+    {
+        var normalized = path.Replace('/', '\\');
+        return normalized.Contains("\\.git\\", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("\\bin\\", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("\\obj\\", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("\\runs\\", StringComparison.OrdinalIgnoreCase)
+            || normalized.Contains("\\memory\\", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryFindTaskDeliverable(ProjectTask task, out string evidence)
+    {
+        evidence = string.Empty;
+        var phase = NormalizePhaseKey(task);
+        if ((phase is "preview") && Regex.IsMatch(task.Result ?? string.Empty, @"https?://\S+", RegexOptions.IgnoreCase))
+        {
+            evidence = "结果中已包含本地预览链接";
+            return true;
+        }
+
+        foreach (var candidate in ExtractDeliverableCandidates(task))
+        {
+            var normalizedCandidate = candidate.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+            try
+            {
+                if (Path.IsPathRooted(normalizedCandidate) && File.Exists(normalizedCandidate) && !IsIgnoredDeliverablePath(normalizedCandidate))
+                {
+                    evidence = normalizedCandidate;
+                    return true;
+                }
+            }
+            catch { }
+
+            foreach (var root in GetDeliverableSearchRoots(task))
+            {
+                try
+                {
+                    var direct = Path.GetFullPath(Path.Combine(root, normalizedCandidate));
+                    if (File.Exists(direct) && !IsIgnoredDeliverablePath(direct))
+                    {
+                        if (string.Equals(Path.GetFileName(direct), "index.html", StringComparison.OrdinalIgnoreCase)
+                            && direct.Contains("NiumaClaw.Team", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+                        evidence = direct;
+                        return true;
+                    }
+                }
+                catch { }
+
+                var fileName = Path.GetFileName(normalizedCandidate);
+                if (string.IsNullOrWhiteSpace(fileName) || normalizedCandidate.Contains(Path.DirectorySeparatorChar)) continue;
+                try
+                {
+                    var found = Directory.EnumerateFiles(root, fileName, SearchOption.AllDirectories)
+                        .FirstOrDefault(path => !IsIgnoredDeliverablePath(path)
+                            && !(string.Equals(fileName, "index.html", StringComparison.OrdinalIgnoreCase)
+                                && path.Contains("NiumaClaw.Team", StringComparison.OrdinalIgnoreCase)));
+                    if (!string.IsNullOrWhiteSpace(found))
+                    {
+                        evidence = found;
+                        return true;
+                    }
+                }
+                catch { }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ValidateTaskCompletionDeliverables(ProjectTask task, out string message)
+    {
+        message = string.Empty;
+        if (!IsWebsiteStageTask(task)) return true;
+        if (TryFindTaskDeliverable(task, out var evidence))
+        {
+            message = evidence;
+            return true;
+        }
+        var phase = NormalizePhaseKey(task);
+        var expected = WebsiteStageDeliverables.TryGetValue(phase, out var candidates)
+            ? string.Join(" 或 ", candidates)
+            : (task.Deliverable ?? "阶段交付物");
+        message = $"阶段《{GetStageDisplayName(phase)}》缺少必须交付物：{expected}";
+        return false;
+    }
+
+    private static bool IsEmptyModelResponseFailure(string? text)
+    {
+        var value = (text ?? string.Empty).Trim();
+        return value.Contains("empty response", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("空返回", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("模型未返回", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("returned an empty", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryAutoCompleteFromExistingDeliverable(ProjectTask task, string reason, List<ProjectTask>? unlockedTasks, out string summary)
+    {
+        summary = string.Empty;
+        if (!TryFindTaskDeliverable(task, out var evidence)) return false;
+        task.Status = "done";
+        task.BlockedReason = null;
+        task.ReviewRequired = false;
+        task.CheckedOutBy = null;
+        task.CheckedOutAt = null;
+        task.Result = $"模型返回为空，但系统已检测到目标交付物存在，自动标记本阶段完成。\n原因：{reason}\n交付物：{evidence}";
+        task.Comments ??= [];
+        task.Comments.Add(new TaskComment
+        {
+            Author = "system",
+            Content = $"模型空返回兜底：检测到交付物已存在，自动完成阶段。交付物：{evidence}",
+            Timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+        });
+        TouchTask(task);
+        UnlockReadyDependentTasks(task, unlockedTasks);
+        summary = task.Result;
+        return true;
+    }
+
+    private static bool CanStartBoardTask(ProjectTask task, out string reason)
+    {
+        reason = string.Empty;
+        if (!AreTaskDependenciesSatisfied(task, out var missingDependencyTitles))
+        {
+            reason = $"前置阶段未完成：{missingDependencyTitles}";
+            return false;
+        }
+
+        var project = FindProjectContainingTask(task);
+        if (project is null) return true;
+        var phase = NormalizePhaseKey(task);
+        var requiredPriorPhases = WebsiteStagePrerequisites.TryGetValue(phase, out var priorPhases)
+            ? priorPhases
+            : [];
+        foreach (var priorPhase in requiredPriorPhases)
+        {
+            var candidates = project.Tasks
+                .Where(candidate => string.Equals(NormalizePhaseKey(candidate), priorPhase, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (candidates.Count == 0) continue;
+            var completed = candidates.FirstOrDefault(candidate => NormalizeTaskStatus(candidate.Status) == "done");
+            if (completed is null)
+            {
+                reason = $"阶段门禁：必须先完成《{GetStageDisplayName(priorPhase)}》后才能开始《{GetStageDisplayName(phase)}》。";
+                return false;
+            }
+            if (!ValidateTaskCompletionDeliverables(completed, out var evidence))
+            {
+                reason = $"阶段门禁：前置阶段《{GetStageDisplayName(priorPhase)}》尚未产出有效交付物。{evidence}";
+                return false;
+            }
+        }
+
+        foreach (var depId in task.DependsOn ?? [])
+        {
+            var dep = project.Tasks.FirstOrDefault(candidate => string.Equals(candidate.Id, depId, StringComparison.OrdinalIgnoreCase));
+            if (dep is null || !IsWebsiteStageTask(dep)) continue;
+            if (!ValidateTaskCompletionDeliverables(dep, out var evidence))
+            {
+                reason = $"阶段门禁：前置任务《{dep.Title}》尚未产出有效交付物。{evidence}";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string GetTeamProjectRoot()
+    {
+        var candidates = new[]
+        {
+            Directory.GetCurrentDirectory(),
+            AppContext.BaseDirectory,
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."))
+        };
+        foreach (var candidate in candidates)
+        {
+            try
+            {
+                var full = Path.GetFullPath(candidate);
+                if (File.Exists(Path.Combine(full, "NiumaClaw.Team.csproj"))) return full;
+            }
+            catch { }
+        }
+        return Directory.GetCurrentDirectory();
+    }
+
+    private static string GetWorkspaceRoot()
+    {
+        return Directory.GetParent(GetTeamProjectRoot())?.FullName ?? Directory.GetCurrentDirectory();
+    }
+
+    private static async Task<NodeDiagnosis> DiagnoseNodeAsync(string name, NodeInfo info)
+    {
+        var url = (info.Url ?? string.Empty).Trim().TrimEnd('/');
+        var diagnosis = new NodeDiagnosis
+        {
+            Name = name,
+            Url = url,
+            AdapterType = GetAdapterType(info),
+            LastCheckedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            LogHint = GetNodeLogPath(name, info),
+            RestartHint = "可点击“重启节点”尝试恢复。"
+        };
+
+        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var baseUri))
+        {
+            diagnosis.Reason = "节点地址为空或格式不正确。";
+            diagnosis.Suggestion = "编辑员工节点地址，格式示例：http://127.0.0.1:5050";
+            return diagnosis;
+        }
+
+        async Task<(bool ok, string error)> ProbeAsync(string suffix)
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                using var probe = await _httpClient.GetAsync(new Uri(baseUri, suffix), cts.Token);
+                return probe.IsSuccessStatusCode
+                    ? (true, string.Empty)
+                    : (false, $"HTTP {(int)probe.StatusCode}");
+            }
+            catch (TaskCanceledException)
+            {
+                return (false, "请求超时");
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        var configProbe = await ProbeAsync("/api/config");
+        var statusProbe = await ProbeAsync("/api/status");
+        diagnosis.ConfigOk = configProbe.ok;
+        diagnosis.StatusOk = statusProbe.ok;
+        diagnosis.Online = configProbe.ok || statusProbe.ok;
+        if (diagnosis.Online)
+        {
+            diagnosis.Reason = statusProbe.ok && configProbe.ok
+                ? "节点在线，配置与状态接口均可访问。"
+                : $"节点部分可用：config={configProbe.ok}，status={statusProbe.ok}。";
+            diagnosis.Suggestion = statusProbe.ok ? "无需处理。" : "节点可访问但状态接口异常，建议打开日志确认。";
+        }
+        else
+        {
+            diagnosis.Reason = $"节点无响应：/api/config {configProbe.error}；/api/status {statusProbe.error}。";
+            diagnosis.Suggestion = "先重启节点；如果仍失败，检查端口是否被占用、脚本是否报错、模型配置是否完整。";
+        }
+        return diagnosis;
+    }
+
+    private static string GetNodeLogPath(string name, NodeInfo info)
+    {
+        var teamRoot = GetTeamProjectRoot();
+        var workspaceRoot = GetWorkspaceRoot();
+        var adapter = GetAdapterType(info).ToLowerInvariant();
+        if (adapter.Contains("hermes") || (info.Url ?? string.Empty).Contains(":5061") || (info.Url ?? string.Empty).Contains(":5077"))
+        {
+            return Path.Combine(teamRoot, "logs");
+        }
+        var localNodeRoot = Path.Combine(workspaceRoot, "NiumaClaw.LocalNode");
+        var agentWorkspace = Path.Combine(localNodeRoot, "agent_workspace", name);
+        if (Directory.Exists(agentWorkspace)) return agentWorkspace;
+        return localNodeRoot;
+    }
+
+    private static bool TryRestartNode(string name, NodeInfo info, out string message)
+    {
+        message = string.Empty;
+        try
+        {
+            var teamRoot = GetTeamProjectRoot();
+            var workspaceRoot = GetWorkspaceRoot();
+            var adapter = GetAdapterType(info).ToLowerInvariant();
+            var url = info.Url ?? string.Empty;
+            ProcessStartInfo psi;
+            if (adapter.Contains("hermes") || url.Contains(":5061") || url.Contains(":5077"))
+            {
+                var script = Path.Combine(teamRoot, "start_hermes_node.cmd");
+                if (!File.Exists(script))
+                {
+                    message = $"未找到 Hermes 启动脚本：{script}";
+                    return false;
+                }
+                psi = new ProcessStartInfo("cmd.exe", $"/c start \"NiumaClaw Hermes\" /min \"{script}\"")
+                {
+                    WorkingDirectory = teamRoot,
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                };
+            }
+            else
+            {
+                var localNodeProject = Path.Combine(workspaceRoot, "NiumaClaw.LocalNode", "NiumaClaw.LocalNode.csproj");
+                if (!File.Exists(localNodeProject))
+                {
+                    message = $"未找到 LocalNode 项目：{localNodeProject}";
+                    return false;
+                }
+                psi = new ProcessStartInfo("cmd.exe", $"/c start \"NiumaClaw LocalNode\" /min dotnet run --project \"{localNodeProject}\"")
+                {
+                    WorkingDirectory = Path.GetDirectoryName(localNodeProject) ?? workspaceRoot,
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                };
+            }
+            Process.Start(psi);
+            message = "已发起重启，请等待几秒后重新检测。";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+            return false;
+        }
+    }
+
+    private static bool TryOpenNodeLog(string name, NodeInfo info, out string message)
+    {
+        message = string.Empty;
+        try
+        {
+            var path = GetNodeLogPath(name, info);
+            if (!Directory.Exists(path) && File.Exists(path)) path = Path.GetDirectoryName(path) ?? path;
+            if (!Directory.Exists(path))
+            {
+                message = $"日志目录不存在：{path}";
+                return false;
+            }
+            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true });
+            message = $"已打开日志目录：{path}";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            message = ex.Message;
+            return false;
+        }
+    }
+
+    private static string ReadNodeNameFromJson(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            return doc.RootElement.TryGetProperty("name", out var nameEl)
+                ? (nameEl.GetString() ?? string.Empty).Trim()
+                : string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static string GetDemoWebsiteTaskRoot()
+    {
+        return Path.Combine(GetTeamProjectRoot(), "docs", "demo", "website-task");
+    }
+
+    private static async Task WriteDemoFileAsync(string root, string relativePath, string content)
+    {
+        var fullPath = Path.Combine(root, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath) ?? root);
+        await File.WriteAllTextAsync(fullPath, content.Trim() + Environment.NewLine, Encoding.UTF8);
+    }
+
+    private static string PickDemoAssignee(IReadOnlyList<string> assignees, int index)
+    {
+        return assignees.Count == 0 ? "示例员工" : assignees[index % assignees.Count];
+    }
+
+    private static async Task<ProjectBoard> BuildDemoWebsiteTaskAsync(string baseUrl, IReadOnlyList<string> assignees)
+    {
+        var root = GetDemoWebsiteTaskRoot();
+        Directory.CreateDirectory(root);
+        var previewUrl = $"{baseUrl.TrimEnd('/')}/demo/website-task/index.html";
+
+        await WriteDemoFileAsync(root, "prd.md", """
+        # NiumaClaw 官网 PRD
+
+        ## 目标用户
+        - 第一次了解 NiumaClaw 的项目作者、开发者和潜在贡献者。
+        - 想快速验证多智能体阶段化交付能力的团队负责人。
+
+        ## 核心卖点
+        - 把复杂任务拆成 PRD、原型、UI/UX、开发、测试和本地链接等阶段。
+        - 每个阶段必须产出可检查交付物，前置阶段未完成时不会提前进入下一阶段。
+        - 员工节点离线时给出原因、重试、重启和日志入口。
+
+        ## 页面范围
+        - 首屏：一句话价值、主行动按钮、阶段链路概览。
+        - 能力区：项目看板、阶段门禁、节点医生、交付物中心。
+        - Demo 区：展示本地预览链接和完整示例任务交付物。
+
+        ## 验收标准
+        - 用户 10 秒内理解 NiumaClaw 是做什么的。
+        - 页面能打开本地预览链接。
+        - 看板中能看到 PRD -> 原型 -> UI/UX -> 开发 -> 测试 -> 本地链接的完整链路。
+        """);
+
+        await WriteDemoFileAsync(root, "prototype.md", """
+        # 页面原型
+
+        ## 信息架构
+        1. Hero：主截图占位、一句话价值、快速启动按钮。
+        2. Stage Flow：六阶段流程条，展示当前任务从想法到本地链接的路径。
+        3. Feature Grid：交付物中心、阶段门禁、空返回兜底、节点医生。
+        4. Demo Link：本地测试链接和交付物清单。
+
+        ## 交互原型
+        - 点击“查看本地 Demo”打开本地预览页面。
+        - 点击“打开项目看板”回到 NiumaClaw 看板验证任务链路。
+        - 每个阶段卡片只展示结果摘要，详细内容在交付物中查看。
+        """);
+
+        await WriteDemoFileAsync(root, "ui-spec.md", """
+        # UI/UX 视觉规范
+
+        ## 风格
+        - 关键词：清晰、轻量、工程感、可验证。
+        - 视觉避免过度装饰，重点突出阶段、交付物和本地链接。
+
+        ## 色彩
+        - 主色：#2563eb，用于主行动和进度。
+        - 成功色：#16a34a，用于已完成阶段。
+        - 背景色：#f8fafc，用于降低阅读压力。
+        - 文本色：#0f172a，用于核心信息。
+
+        ## 组件
+        - 阶段卡片：展示阶段名、状态和交付物。
+        - 交付物按钮：直接打开或定位到文件。
+        - 本地链接条：突出可访问的 preview URL。
+        """);
+
+        await WriteDemoFileAsync(root, "index.html", """
+        <!doctype html>
+        <html lang="zh-CN">
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>NiumaClaw 官网 Demo</title>
+            <style>
+                * { box-sizing: border-box; }
+                body { margin: 0; font-family: "Microsoft YaHei", Arial, sans-serif; color: #0f172a; background: #f8fafc; }
+                main { max-width: 1120px; margin: 0 auto; padding: 40px 24px; }
+                .hero { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 28px; align-items: stretch; }
+                .panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08); }
+                h1 { margin: 0 0 12px; font-size: clamp(32px, 5vw, 56px); letter-spacing: 0; }
+                p { line-height: 1.7; color: #475569; }
+                .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 22px; }
+                a { color: inherit; }
+                .btn { display: inline-flex; align-items: center; justify-content: center; padding: 12px 16px; border-radius: 10px; text-decoration: none; font-weight: 800; }
+                .primary { background: #2563eb; color: #fff; }
+                .secondary { background: #e0f2fe; color: #075985; }
+                .shot { min-height: 280px; display: grid; place-items: center; background: linear-gradient(135deg, #e0f2fe, #dcfce7); border: 1px solid #bfdbfe; border-radius: 16px; }
+                .board { width: min(92%, 460px); background: rgba(255,255,255,0.88); border: 1px solid #dbeafe; border-radius: 14px; padding: 18px; }
+                .bar { height: 10px; border-radius: 999px; background: #dbeafe; overflow: hidden; margin: 12px 0; }
+                .bar span { display: block; width: 100%; height: 100%; background: linear-gradient(90deg, #2563eb, #16a34a); }
+                .stages { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
+                .stage { background: #fff; border: 1px solid #dcfce7; border-radius: 12px; padding: 14px; min-height: 110px; }
+                .stage strong { display: block; margin-bottom: 8px; }
+                .done { color: #15803d; font-weight: 800; }
+                .features { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 24px; }
+                .feature { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; }
+                @media (max-width: 860px) {
+                    .hero, .features { grid-template-columns: 1fr; }
+                    .stages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+                }
+            </style>
+        </head>
+        <body>
+            <main>
+                <section class="hero">
+                    <div class="panel">
+                        <h1>NiumaClaw</h1>
+                        <p>把一个模糊想法拆成可审核、可交付、可预览的多阶段任务链路，让智能体团队按顺序产出结果。</p>
+                        <div class="actions">
+                            <a class="btn primary" href="/">打开项目看板</a>
+                            <a class="btn secondary" href="./prd.md">查看 PRD</a>
+                        </div>
+                    </div>
+                    <div class="shot">
+                        <div class="board">
+                            <strong>官网任务交付链路</strong>
+                            <div class="bar"><span></span></div>
+                            <p>PRD -> 原型 -> UI/UX -> 开发 -> 测试报告 -> 本地链接</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="stages">
+                    <div class="stage"><strong>PRD</strong><span class="done">已完成</span><p>目标用户、核心卖点、页面范围。</p></div>
+                    <div class="stage"><strong>原型</strong><span class="done">已完成</span><p>信息架构和交互路径。</p></div>
+                    <div class="stage"><strong>UI/UX</strong><span class="done">已完成</span><p>色彩、组件和页面风格。</p></div>
+                    <div class="stage"><strong>开发</strong><span class="done">已完成</span><p>本地 HTML 页面。</p></div>
+                    <div class="stage"><strong>测试</strong><span class="done">已完成</span><p>可打开、可阅读、流程完整。</p></div>
+                    <div class="stage"><strong>本地链接</strong><span class="done">已完成</span><p>当前页面即预览链接。</p></div>
+                </section>
+
+                <section class="features">
+                    <div class="feature"><strong>交付物中心</strong><p>看板优先展示交付总结和交付物。</p></div>
+                    <div class="feature"><strong>阶段门禁</strong><p>前置交付物缺失时不提前进入后续阶段。</p></div>
+                    <div class="feature"><strong>空返回兜底</strong><p>模型空返回但文件已存在时自动推进。</p></div>
+                    <div class="feature"><strong>节点医生</strong><p>员工离线时显示原因、重试、重启和日志入口。</p></div>
+                </section>
+            </main>
+        </body>
+        </html>
+        """);
+
+        await WriteDemoFileAsync(root, "test-report.md", """
+        # 测试报告
+
+        ## 测试范围
+        - PRD、原型、UI/UX、开发、本地服务说明等交付物均存在。
+        - 本地预览页面可通过 `/demo/website-task/index.html` 访问。
+        - 看板任务状态均为 done，可看到完整阶段链路。
+
+        ## 结果
+        - 交付物完整：通过。
+        - 阶段顺序清晰：通过。
+        - 本地链接可用：通过。
+
+        ## 残余风险
+        - 这是演示任务，不调用真实模型；真实任务仍需依赖员工节点在线和模型返回质量。
+        """);
+
+        await WriteDemoFileAsync(root, "local-service.md", $$"""
+        # 本地启动说明
+
+        ## 预览地址
+        {{previewUrl}}
+
+        ## 说明
+        该示例由 NiumaClaw Team 后端自动生成，用于展示完整官网任务链路：
+        PRD -> 原型 -> UI/UX -> 开发 -> 测试报告 -> 本地链接。
+        """);
+
+        ProjectTask Task(string id, string title, string phase, string deliverable, string gate, int assigneeIndex, params string[] dependsOn)
+        {
+            return new ProjectTask
+            {
+                Id = id,
+                Title = title,
+                Assignee = PickDemoAssignee(assignees, assigneeIndex),
+                Status = "done",
+                UpdateTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                Result = $"{GetStageDisplayName(phase)}已完成。交付物：{deliverable}。",
+                Priority = assigneeIndex == 0 ? "high" : "normal",
+                Phase = phase,
+                DependsOn = dependsOn.ToList(),
+                Deliverable = deliverable,
+                Gate = gate,
+                Comments = new List<TaskComment>
+                {
+                    new TaskComment
+                    {
+                        Author = "system",
+                        Content = "示例任务已自动生成，用于演示完整阶段链路。",
+                        Timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                    }
+                }
+            };
+        }
+
+        return new ProjectBoard
+        {
+            ProjectName = "示例：NiumaClaw 官网完整链路",
+            ProjectGoal = "让新用户一键看到 PRD -> 原型 -> UI/UX -> 开发 -> 测试 -> 本地链接的完整交付过程。",
+            ContextSummary = $"本示例不调用模型，直接生成完整交付物。预览地址：{previewUrl}",
+            Tasks = new List<ProjectTask>
+            {
+                Task("demo-prd-1", "输出官网 PRD：目标用户、核心卖点、页面范围、验收标准", "prd", "docs/demo/website-task/prd.md", "PRD 文档存在且包含目标用户、核心卖点、页面范围、验收标准。", 0),
+                Task("demo-prototype-2", "输出页面原型：信息架构和交互路径", "prototype", "docs/demo/website-task/prototype.md", "原型文档存在且说明首屏、阶段流、功能区和 Demo 链接。", 1, "demo-prd-1"),
+                Task("demo-uiux-3", "输出 UI/UX 视觉规范：色彩、组件和页面风格", "uiux", "docs/demo/website-task/ui-spec.md", "UI/UX 规范存在且包含风格、色彩和组件要求。", 2, "demo-prototype-2"),
+                Task("demo-frontend-4", "开发官网前端页面和本地预览", "frontend", "docs/demo/website-task/index.html", "前端页面存在并可通过本地服务访问。", 3, "demo-uiux-3"),
+                Task("demo-test-5", "输出测试报告：验证交付物和本地链接", "test", "docs/demo/website-task/test-report.md", "测试报告存在且覆盖交付物、阶段顺序和本地链接。", 4, "demo-frontend-4"),
+                Task("demo-preview-6", "给出本地测试链接和启动说明", "preview", "docs/demo/website-task/local-service.md", $"本地服务说明存在，预览地址为 {previewUrl}。", 5, "demo-test-5")
+            }
+        };
+    }
+
+    private static string GetStaticContentType(string filePath)
+    {
+        return Path.GetExtension(filePath).ToLowerInvariant() switch
+        {
+            ".html" or ".htm" => "text/html; charset=utf-8",
+            ".md" => "text/markdown; charset=utf-8",
+            ".css" => "text/css; charset=utf-8",
+            ".js" => "application/javascript; charset=utf-8",
+            ".json" => "application/json; charset=utf-8",
+            ".svg" => "image/svg+xml",
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
+            _ => "application/octet-stream"
+        };
+    }
+
+    private static bool TryGetDemoStaticFile(string requestPath, out string filePath)
+    {
+        filePath = string.Empty;
+        const string prefix = "/demo/website-task/";
+        if (!requestPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+
+        var relative = Uri.UnescapeDataString(requestPath.Substring(prefix.Length));
+        if (string.IsNullOrWhiteSpace(relative)) relative = "index.html";
+        relative = relative.Replace('/', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
+        if (relative.Contains("..", StringComparison.Ordinal)) return false;
+
+        var root = Path.GetFullPath(GetDemoWebsiteTaskRoot());
+        var candidate = Path.GetFullPath(Path.Combine(root, relative));
+        if (!candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(candidate, root, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        filePath = candidate;
+        return true;
     }
 
     private static string BuildProjectLineageContext(ProjectBoard project)
@@ -1211,10 +2012,13 @@ class Program
 
     static async Task Main(string[] args)
     {
-        string url = Environment.GetEnvironmentVariable("NiumaClaw_TEAM_URL")?.Trim() ?? "http://localhost:4050/";
+        var urls = ResolveTeamListenerUrls();
         _configPath = ResolveTeamConfigPath();
         using var listener = new HttpListener();
-        listener.Prefixes.Add(url);
+        foreach (var url in urls)
+        {
+            listener.Prefixes.Add(url);
+        }
         using var schedulerCts = new CancellationTokenSource();
 
         try
@@ -1230,12 +2034,17 @@ class Program
                 catch { }
             }
             listener.Start();
-Console.WriteLine($"[牛马Claw Team] 服务已启动：{url}");
+            Console.WriteLine($"[牛马Claw Team] 服务已启动：{string.Join("、", urls)}");
+            foreach (var accessUrl in BuildTeamAccessUrls(urls))
+            {
+                Console.WriteLine($"[同网访问] {accessUrl}");
+            }
             _ = StartRoutineSchedulerAsync(schedulerCts.Token);
         }
         catch (HttpListenerException ex)
         {
             Console.WriteLine($"Team 启动失败：{ex.Message}");
+            Console.WriteLine("如果要开放给同网络同事访问，请右键以管理员身份运行 start_team_lan.cmd，完成 URL ACL 和防火墙配置。");
             return;
         }
 
@@ -1243,6 +2052,51 @@ Console.WriteLine($"[牛马Claw Team] 服务已启动：{url}");
         {
             var context = await listener.GetContextAsync();
             _ = Task.Run(() => HandleRequestAsync(context));
+        }
+    }
+
+    private static List<string> ResolveTeamListenerUrls()
+    {
+        var configured = Environment.GetEnvironmentVariable("NiumaClaw_TEAM_URLS")?.Trim();
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            configured = Environment.GetEnvironmentVariable("NiumaClaw_TEAM_URL")?.Trim();
+        }
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            configured = "http://localhost:4050/";
+        }
+
+        return configured
+            .Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(url => url.EndsWith('/') ? url : url + "/")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static IEnumerable<string> BuildTeamAccessUrls(IEnumerable<string> listenerUrls)
+    {
+        var ports = listenerUrls
+            .Select(url => Uri.TryCreate(url.Replace("*", "localhost").Replace("+", "localhost"), UriKind.Absolute, out var uri) ? uri.Port : 4050)
+            .DefaultIfEmpty(4050)
+            .Distinct()
+            .ToList();
+
+        var ips = Dns.GetHostEntry(Dns.GetHostName())
+            .AddressList
+            .Where(address => address.AddressFamily == AddressFamily.InterNetwork)
+            .Where(address => !IPAddress.IsLoopback(address))
+            .Select(address => address.ToString())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var port in ports)
+        {
+            yield return $"本机访问：http://localhost:{port}/";
+            foreach (var ip in ips)
+            {
+                yield return $"同网络同事访问：http://{ip}:{port}/";
+            }
         }
     }
     
@@ -1480,6 +2334,20 @@ Console.WriteLine($"[牛马Claw Team] 服务已启动：{url}");
                 res.ContentLength64 = buffer.Length;
                 await res.OutputStream.WriteAsync(buffer);
             }
+            else if (TryGetDemoStaticFile(path, out var demoFilePath))
+            {
+                if (!File.Exists(demoFilePath))
+                {
+                    res.StatusCode = 404;
+                }
+                else
+                {
+                    byte[] fileBuffer = await File.ReadAllBytesAsync(demoFilePath);
+                    res.ContentType = GetStaticContentType(demoFilePath);
+                    res.ContentLength64 = fileBuffer.Length;
+                    await res.OutputStream.WriteAsync(fileBuffer);
+                }
+            }
             else if (path.EndsWith(".png") || path.EndsWith(".jpeg") || path.EndsWith(".jpg") || path.EndsWith(".svg"))
             {
                 string resourceName = $"NiumaClaw.Team.{path.Substring(1)}";
@@ -1493,12 +2361,15 @@ Console.WriteLine($"[牛马Claw Team] 服务已启动：{url}");
                 else
                 {
                     string relativePath = path.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
-                    string externalAssetPath = Path.Combine(Environment.CurrentDirectory, "NiumaClaw.Team", relativePath);
-                    if (!File.Exists(externalAssetPath))
-                    {
-                        externalAssetPath = Path.Combine(AppContext.BaseDirectory, relativePath);
-                    }
-                    if (File.Exists(externalAssetPath))
+                    string[] assetCandidates =
+                    [
+                        Path.Combine(AppContext.BaseDirectory, relativePath),
+                        Path.Combine(Environment.CurrentDirectory, relativePath),
+                        Path.Combine(Environment.CurrentDirectory, "NiumaClaw.Team", relativePath),
+                        Path.Combine(GetWorkspaceRootPath(), "NiumaClaw.Team", relativePath)
+                    ];
+                    string externalAssetPath = assetCandidates.FirstOrDefault(File.Exists) ?? string.Empty;
+                    if (!string.IsNullOrWhiteSpace(externalAssetPath))
                     {
                         byte[] fileBuffer = await File.ReadAllBytesAsync(externalAssetPath);
                         res.ContentType = path.EndsWith(".svg") ? "image/svg+xml" : path.EndsWith(".png") ? "image/png" : "image/jpeg";
@@ -1973,11 +2844,11 @@ Console.WriteLine($"[牛马Claw Team] 服务已启动：{url}");
                         return;
                     }
 
-                    if (!AreTaskDependenciesSatisfied(task, out var missingDependencyTitles))
+                    if (!CanStartBoardTask(task, out var gateReason))
                     {
                         res.StatusCode = 409;
                         res.ContentType = "application/json; charset=utf-8";
-                        var dependencyJson = $"{{\"status\":\"error\",\"message\":\"前置阶段未完成，暂不能领取该任务。\",\"missingDependencies\":{JsonSerializer.Serialize(missingDependencyTitles, AppJsonContext.Default.String)}}}";
+                        var dependencyJson = $"{{\"status\":\"error\",\"message\":{JsonSerializer.Serialize(gateReason, AppJsonContext.Default.String)}}}";
                         res.OutputStream.Write(Encoding.UTF8.GetBytes(dependencyJson));
                         return;
                     }
@@ -2041,7 +2912,7 @@ Console.WriteLine($"[牛马Claw Team] 服务已启动：{url}");
                     await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("{\"status\":\"error\",\"message\":\"缺少任务编号或状态。\"}"));
                     return;
                 }
-                if (normalizedStatus == "blocked" && string.IsNullOrWhiteSpace(blockedReason))
+                if (normalizedStatus == "blocked" && string.IsNullOrWhiteSpace(blockedReason) && !IsEmptyModelResponseFailure(result))
                 {
                     res.StatusCode = 400;
                     res.ContentType = "application/json; charset=utf-8";
@@ -2060,8 +2931,29 @@ Console.WriteLine($"[牛马Claw Team] 服务已启动：{url}");
                         return;
                     }
 
-                    task.Status = normalizedStatus;
                     if (!string.IsNullOrWhiteSpace(result)) task.Result = result;
+                    if (normalizedStatus == "blocked" && IsEmptyModelResponseFailure(string.Join("\n", result, blockedReason)))
+                    {
+                        if (TryAutoCompleteFromExistingDeliverable(task, string.Join(" / ", new[] { result, blockedReason }.Where(item => !string.IsNullOrWhiteSpace(item))), null, out var autoSummary))
+                        {
+                            SaveConfigLocked();
+                            res.StatusCode = 200;
+                            res.ContentType = "application/json; charset=utf-8";
+                            var autoJson = $"{{\"status\":\"ok\",\"autoCompleted\":true,\"message\":{JsonSerializer.Serialize(autoSummary, AppJsonContext.Default.String)},\"taskId\":{JsonSerializer.Serialize(task.Id, AppJsonContext.Default.String)},\"taskStatus\":{JsonSerializer.Serialize(task.Status, AppJsonContext.Default.String)}}}";
+                            res.OutputStream.Write(Encoding.UTF8.GetBytes(autoJson));
+                            return;
+                        }
+                    }
+                    if (normalizedStatus == "done" && !ValidateTaskCompletionDeliverables(task, out var deliverableMessage))
+                    {
+                        res.StatusCode = 409;
+                        res.ContentType = "application/json; charset=utf-8";
+                        var gateJson = $"{{\"status\":\"error\",\"message\":{JsonSerializer.Serialize(deliverableMessage, AppJsonContext.Default.String)}}}";
+                        res.OutputStream.Write(Encoding.UTF8.GetBytes(gateJson));
+                        return;
+                    }
+
+                    task.Status = normalizedStatus;
                     task.BlockedReason = normalizedStatus == "blocked" ? blockedReason : null;
                     if (reviewRequired.HasValue) task.ReviewRequired = reviewRequired.Value;
                     if (normalizedStatus == "in_review") task.ReviewRequired = true;
@@ -2754,6 +3646,106 @@ JSON 格式如下：
                 }
                 catch { res.StatusCode = 500; }
             }
+            else if (path == "/api/nodes/diagnose" && req.HttpMethod == "GET")
+            {
+                Dictionary<string, NodeInfo> nodes;
+                lock (_configSyncRoot)
+                {
+                    nodes = _config.PeerNodes
+                        .Where(kvp => !string.Equals(kvp.Key, "ceo", StringComparison.OrdinalIgnoreCase))
+                        .ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.OrdinalIgnoreCase);
+                }
+                var diagnoseTasks = nodes.Select(async kvp => new KeyValuePair<string, NodeDiagnosis>(kvp.Key, await DiagnoseNodeAsync(kvp.Key, kvp.Value)));
+                var pairs = await Task.WhenAll(diagnoseTasks);
+                var payload = pairs.ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.OrdinalIgnoreCase);
+                res.ContentType = "application/json; charset=utf-8";
+                await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload, typeof(Dictionary<string, NodeDiagnosis>), AppJsonContext.Default)));
+            }
+            else if (path == "/api/nodes/restart" && req.HttpMethod == "POST")
+            {
+                using var reader = new StreamReader(req.InputStream);
+                var name = ReadNodeNameFromJson(await reader.ReadToEndAsync());
+                NodeInfo? info = null;
+                lock (_configSyncRoot)
+                {
+                    if (!string.IsNullOrWhiteSpace(name)) _config.PeerNodes.TryGetValue(name, out info);
+                }
+                res.ContentType = "application/json; charset=utf-8";
+                if (string.IsNullOrWhiteSpace(name) || info is null)
+                {
+                    res.StatusCode = 404;
+                    await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("{\"status\":\"error\",\"message\":\"没有找到对应节点。\"}"));
+                    return;
+                }
+                var ok = TryRestartNode(name, info, out var message);
+                res.StatusCode = ok ? 200 : 500;
+                var json = $"{{\"status\":\"{(ok ? "ok" : "error")}\",\"message\":{JsonSerializer.Serialize(message, AppJsonContext.Default.String)}}}";
+                await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes(json));
+            }
+            else if (path == "/api/nodes/open-log" && req.HttpMethod == "POST")
+            {
+                using var reader = new StreamReader(req.InputStream);
+                var name = ReadNodeNameFromJson(await reader.ReadToEndAsync());
+                NodeInfo? info = null;
+                lock (_configSyncRoot)
+                {
+                    if (!string.IsNullOrWhiteSpace(name)) _config.PeerNodes.TryGetValue(name, out info);
+                }
+                res.ContentType = "application/json; charset=utf-8";
+                if (string.IsNullOrWhiteSpace(name) || info is null)
+                {
+                    res.StatusCode = 404;
+                    await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("{\"status\":\"error\",\"message\":\"没有找到对应节点。\"}"));
+                    return;
+                }
+                var ok = TryOpenNodeLog(name, info, out var message);
+                res.StatusCode = ok ? 200 : 500;
+                var json = $"{{\"status\":\"{(ok ? "ok" : "error")}\",\"message\":{JsonSerializer.Serialize(message, AppJsonContext.Default.String)}}}";
+                await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes(json));
+            }
+            else if (path == "/api/demo/website-task" && req.HttpMethod == "POST")
+            {
+                res.ContentType = "application/json; charset=utf-8";
+                List<string> assignees;
+                lock (_configSyncRoot)
+                {
+                    assignees = _config.PeerNodes.Keys
+                        .Where(name => !string.Equals(name, "ceo", StringComparison.OrdinalIgnoreCase))
+                        .Where(name => !string.IsNullOrWhiteSpace(name))
+                        .Take(6)
+                        .ToList();
+                }
+
+                var requestUrl = req.Url;
+                var baseUrl = $"{requestUrl?.Scheme ?? "http"}://{requestUrl?.Host ?? "localhost"}";
+                if (requestUrl is { IsDefaultPort: false })
+                {
+                    baseUrl += $":{requestUrl.Port}";
+                }
+
+                var demoBoard = await BuildDemoWebsiteTaskAsync(baseUrl, assignees);
+                var previewUrl = $"{baseUrl.TrimEnd('/')}/demo/website-task/index.html";
+                lock (_configSyncRoot)
+                {
+                    _config.Projects ??= new List<ProjectBoard>();
+                    _config.Projects.RemoveAll(project => string.Equals(project.ProjectName, demoBoard.ProjectName, StringComparison.OrdinalIgnoreCase));
+                    _config.Projects.Insert(0, demoBoard);
+                    SaveConfigLocked();
+                }
+
+                var deliverables = demoBoard.Tasks
+                    .Select(task => task.Deliverable ?? string.Empty)
+                    .Where(item => !string.IsNullOrWhiteSpace(item))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Select(item => JsonSerializer.Serialize(item, AppJsonContext.Default.String));
+                var json = "{"
+                    + "\"status\":\"ok\","
+                    + $"\"project_name\":{JsonSerializer.Serialize(demoBoard.ProjectName, AppJsonContext.Default.String)},"
+                    + $"\"preview_url\":{JsonSerializer.Serialize(previewUrl, AppJsonContext.Default.String)},"
+                    + "\"deliverables\":[" + string.Join(",", deliverables) + "]"
+                    + "}";
+                await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes(json));
+            }
             else if (path == "/api/board" && req.HttpMethod == "GET")
             {
                 res.ContentType = "application/json; charset=utf-8";
@@ -2796,28 +3788,59 @@ JSON 格式如下：
                             var existingTask = (targetProject?.Tasks ?? _config.Projects.SelectMany(p => p.Tasks)).FirstOrDefault(t => string.Equals(t.Id, updateTask.Id, StringComparison.OrdinalIgnoreCase));
                             if (existingTask != null)
                             {
-                                existingTask.Status = NormalizeTaskStatus(updateTask.Status) is { Length: > 0 } normalized ? normalized : updateTask.Status;
-                                TouchTask(existingTask);
                                 if (!string.IsNullOrEmpty(updateTask.Result)) existingTask.Result = updateTask.Result;
                                 if (!string.IsNullOrWhiteSpace(updateTask.CheckedOutBy)) existingTask.CheckedOutBy = updateTask.CheckedOutBy;
                                 if (!string.IsNullOrWhiteSpace(updateTask.CheckedOutAt)) existingTask.CheckedOutAt = updateTask.CheckedOutAt;
-                                if (!string.IsNullOrWhiteSpace(updateTask.BlockedReason)) existingTask.BlockedReason = updateTask.BlockedReason;
                                 if (!string.IsNullOrWhiteSpace(updateTask.Phase)) existingTask.Phase = updateTask.Phase;
                                 if (updateTask.DependsOn?.Count > 0) existingTask.DependsOn = updateTask.DependsOn;
                                 if (!string.IsNullOrWhiteSpace(updateTask.Deliverable)) existingTask.Deliverable = updateTask.Deliverable;
                                 if (!string.IsNullOrWhiteSpace(updateTask.Gate)) existingTask.Gate = updateTask.Gate;
                                 existingTask.ReviewRequired = updateTask.ReviewRequired;
                                 if (updateTask.Comments?.Count > 0) existingTask.Comments = updateTask.Comments;
-                                if (NormalizeTaskStatus(existingTask.Status) == "done")
+                                var incomingStatus = NormalizeTaskStatus(updateTask.Status) is { Length: > 0 } normalized ? normalized : updateTask.Status;
+                                if (incomingStatus == "blocked" && IsEmptyModelResponseFailure(string.Join("\n", updateTask.Result, updateTask.BlockedReason)))
                                 {
                                     var unlockedTasks = new List<ProjectTask>();
-                                    UnlockReadyDependentTasks(existingTask, unlockedTasks);
-                                    if (unlockedTasks.Count > 0)
+                                    if (TryAutoCompleteFromExistingDeliverable(existingTask, string.Join(" / ", new[] { updateTask.Result, updateTask.BlockedReason }.Where(item => !string.IsNullOrWhiteSpace(item))), unlockedTasks, out _))
                                     {
                                         autoDispatchProject = FindProjectContainingTask(existingTask);
                                         autoDispatchTasks.AddRange(unlockedTasks);
                                     }
+                                    else
+                                    {
+                                        existingTask.Status = "blocked";
+                                        existingTask.BlockedReason = string.IsNullOrWhiteSpace(updateTask.BlockedReason) ? "模型返回为空，且未检测到目标交付物。" : updateTask.BlockedReason;
+                                    }
                                 }
+                                else if (incomingStatus == "done" && !ValidateTaskCompletionDeliverables(existingTask, out var deliverableMessage))
+                                {
+                                    existingTask.Status = "blocked";
+                                    existingTask.BlockedReason = deliverableMessage;
+                                    existingTask.Result = $"阶段门禁未通过：{deliverableMessage}";
+                                    existingTask.Comments ??= [];
+                                    existingTask.Comments.Add(new TaskComment
+                                    {
+                                        Author = "system",
+                                        Content = deliverableMessage,
+                                        Timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                                    });
+                                }
+                                else
+                                {
+                                    existingTask.Status = incomingStatus;
+                                    existingTask.BlockedReason = incomingStatus == "blocked" ? updateTask.BlockedReason : null;
+                                    if (NormalizeTaskStatus(existingTask.Status) == "done")
+                                    {
+                                        var unlockedTasks = new List<ProjectTask>();
+                                        UnlockReadyDependentTasks(existingTask, unlockedTasks);
+                                        if (unlockedTasks.Count > 0)
+                                        {
+                                            autoDispatchProject = FindProjectContainingTask(existingTask);
+                                            autoDispatchTasks.AddRange(unlockedTasks);
+                                        }
+                                    }
+                                }
+                                TouchTask(existingTask);
                             }
                         }
                         
@@ -2939,6 +3962,7 @@ JSON 格式如下：
 
                 ProjectBoard? foundProject = null;
                 ProjectTask? foundTask = null;
+                string gateError = string.Empty;
 
                 lock (_configSyncRoot)
                 {
@@ -2947,14 +3971,24 @@ JSON 格式如下：
 
                     if (foundTask is not null)
                     {
-                        foundTask.Status = "todo";
-                        foundTask.Result = string.Empty;
-                        foundTask.CheckedOutBy = null;
-                        foundTask.CheckedOutAt = null;
-                        foundTask.BlockedReason = null;
-                        foundTask.ReviewRequired = false;
-                        TouchTask(foundTask);
-                        SaveConfigLocked();
+                        if (!CanStartBoardTask(foundTask, out gateError))
+                        {
+                            foundTask.Status = "backlog";
+                            foundTask.BlockedReason = gateError;
+                            TouchTask(foundTask);
+                            SaveConfigLocked();
+                        }
+                        else
+                        {
+                            foundTask.Status = "todo";
+                            foundTask.Result = string.Empty;
+                            foundTask.CheckedOutBy = null;
+                            foundTask.CheckedOutAt = null;
+                            foundTask.BlockedReason = null;
+                            foundTask.ReviewRequired = false;
+                            TouchTask(foundTask);
+                            SaveConfigLocked();
+                        }
                     }
                 }
 
@@ -2963,6 +3997,14 @@ JSON 格式如下：
                     res.StatusCode = 404;
                     res.ContentType = "application/json; charset=utf-8";
                     var errorJson = $"{{\"status\":\"error\",\"message\":{JsonSerializer.Serialize("没有找到要重试的任务。", AppJsonContext.Default.String)}}}";
+                    await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes(errorJson));
+                    return;
+                }
+                if (!string.IsNullOrWhiteSpace(gateError))
+                {
+                    res.StatusCode = 409;
+                    res.ContentType = "application/json; charset=utf-8";
+                    var errorJson = $"{{\"status\":\"error\",\"message\":{JsonSerializer.Serialize(gateError, AppJsonContext.Default.String)}}}";
                     await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes(errorJson));
                     return;
                 }
@@ -3098,6 +4140,7 @@ JSON 格式如下：
 
                 ProjectBoard? foundProject = null;
                 ProjectTask? foundTask = null;
+                string gateError = string.Empty;
 
                 lock (_configSyncRoot)
                 {
@@ -3112,14 +4155,24 @@ JSON 格式如下：
                         }
                         else
                         {
-                            foundTask.Status = "todo";
-                            foundTask.Result = string.Empty;
-                            foundTask.CheckedOutBy = null;
-                            foundTask.CheckedOutAt = null;
-                            foundTask.BlockedReason = null;
-                            foundTask.ReviewRequired = false;
-                            TouchTask(foundTask);
-                            SaveConfigLocked();
+                            if (!CanStartBoardTask(foundTask, out gateError))
+                            {
+                                foundTask.Status = "backlog";
+                                foundTask.BlockedReason = gateError;
+                                TouchTask(foundTask);
+                                SaveConfigLocked();
+                            }
+                            else
+                            {
+                                foundTask.Status = "todo";
+                                foundTask.Result = string.Empty;
+                                foundTask.CheckedOutBy = null;
+                                foundTask.CheckedOutAt = null;
+                                foundTask.BlockedReason = null;
+                                foundTask.ReviewRequired = false;
+                                TouchTask(foundTask);
+                                SaveConfigLocked();
+                            }
                         }
                     }
                 }
@@ -3138,6 +4191,14 @@ JSON 格式如下：
                     res.StatusCode = 400;
                     res.ContentType = "application/json; charset=utf-8";
                     var errorJson = $"{{\"status\":\"error\",\"message\":{JsonSerializer.Serialize("这条任务正在执行中，不能直接重新开始。请先中止它，或等待当前执行结束。", AppJsonContext.Default.String)}}}";
+                    await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes(errorJson));
+                    return;
+                }
+                if (!string.IsNullOrWhiteSpace(gateError))
+                {
+                    res.StatusCode = 409;
+                    res.ContentType = "application/json; charset=utf-8";
+                    var errorJson = $"{{\"status\":\"error\",\"message\":{JsonSerializer.Serialize(gateError, AppJsonContext.Default.String)}}}";
                     await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes(errorJson));
                     return;
                 }
@@ -3639,6 +4700,8 @@ JSON 格式如下：
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>牛马公司</title>
+    <link rel="preload" href="office_bull_01.png" as="image" data-resource="NiumaClaw.Team.office_bull_01.png">
+    <link rel="preload" href="office_horse_01.png" as="image" data-resource="NiumaClaw.Team.office_horse_01.png">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github.min.css">
     <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/lib/highlight.min.js"></script>
@@ -3805,6 +4868,47 @@ JSON 格式如下：
             border-radius: 10px;
         }
 
+        body.niuma-office-theme-v2 .company-card.office-card-shell {
+            background: linear-gradient(180deg, rgba(255,255,255,0.5), rgba(248,250,252,0.72));
+            border: 1px solid rgba(255,255,255,0.45);
+            box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12);
+            overflow: hidden;
+        }
+
+        .company-card.china-office-desk-surface .desk-img-container {
+            background: linear-gradient(180deg, rgba(241,245,249,0.25), rgba(226,232,240,0.2));
+        }
+
+        .status-chip-rail {
+            position: absolute;
+            top: 14%;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 6px;
+            z-index: 90;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 92%;
+        }
+
+        .desk-status-chip {
+            display: inline-flex;
+            align-items: center;
+            min-height: 22px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 800;
+            border: 1px solid rgba(148,163,184,0.24);
+            box-shadow: 0 4px 10px rgba(15,23,42,0.08);
+            background: rgba(255,255,255,0.94);
+            color: #334155;
+        }
+
+        .desk-status-chip.primary { background: #e0f2fe; color: #075985; }
+        .desk-status-chip.secondary { background: #f1f5f9; color: #334155; }
+
         .chat-bubble {
             position: absolute;
             top: 4%;
@@ -3831,6 +4935,14 @@ JSON 格式如下：
             text-align: left;
             line-height: 1.4;
             overflow: hidden;
+        }
+
+        .chat-bubble.compact-status-bubble {
+            max-width: 78%;
+            min-height: 32px;
+            padding: 7px 12px;
+            font-size: 11px;
+            line-height: 1.35;
         }
 
         .chat-bubble::after {
@@ -4733,13 +5845,13 @@ JSON 格式如下：
 
 .agent-runtime-panel { margin-top: 16px; padding: 16px; border-radius: 14px; background: linear-gradient(180deg, #eff6ff, #f8fafc); border: 1px solid #bfdbfe; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
 .agent-runtime-panel.collapsed { padding-bottom: 12px; }
-.agent-runtime-panel.expanded { height: clamp(360px, 56vh, 640px); max-height: min(70vh, 680px); }
+.agent-runtime-panel.expanded { height: clamp(300px, 38vh, 420px); max-height: 42vh; }
 .agent-runtime-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 10px; flex: 0 0 auto; }
 .agent-runtime-panel h4 { margin: 0; font-size: 16px; color: #1d4ed8; flex: 0 0 auto; }
 .agent-runtime-toggle { border:none; border-radius:999px; padding:7px 12px; cursor:pointer; font-size:12px; font-weight:700; background:#dbeafe; color:#1d4ed8; }
-.agent-runtime-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding-right: 4px; scrollbar-gutter: stable; }
+.agent-runtime-body { flex: 1 1 auto; min-height: 0; overflow: hidden; }
 .agent-runtime-panel.collapsed .agent-runtime-body { display: none; }
-.agent-runtime-grid { display: grid; grid-template-columns: 1.1fr 1.3fr; gap: 14px; flex: 1 1 auto; min-height: min-content; align-items: start; overflow: visible; height: auto; }
+.agent-runtime-grid { display: grid; grid-template-columns: 1.1fr 1.3fr; gap: 14px; flex: 1 1 auto; min-height: 0; overflow: auto; align-items: start; height: 100%; padding-right: 4px; scrollbar-gutter: stable; }
 .agent-runtime-card { background: #fff; border: 1px solid #dbeafe; border-radius: 12px; padding: 12px; min-height: 0; overflow: visible; overflow-wrap: anywhere; word-break: break-word; }
 .agent-runtime-card strong { display: block; margin-bottom: 6px; color: #0f172a; }
 .agent-runtime-pill { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #e2e8f0; color: #334155; margin-right: 6px; margin-bottom: 6px; }
@@ -4809,7 +5921,7 @@ JSON 格式如下：
 
 </head>
 
-<body style="margin:0; padding:0; width:100vw; height:100vh; background-color:#ab9980; ">
+<body class="niuma-office-theme-v2" style="margin:0; padding:0; width:100vw; height:100vh; background-color:#ab9980; ">
     <div class="header-container">
         <div class="header-left" style="justify-content: flex-start; padding-bottom: 5px;">
             <div style="display: flex; flex-direction: column; align-items: flex-start; cursor: pointer; margin-bottom: 12px; transition: transform 0.2s;" onclick="openLicenseModal()" title="点击修改公司名称并尝试申请执照" onmouseover="this.style.transform='translateX(5px)'" onmouseout="this.style.transform='none'">
@@ -7104,11 +8216,11 @@ window.addEventListener('resize', adjustGridColumns);
 
 function createDeskElement() {
     const desk = document.createElement('div');
-    desk.className = 'company-card empty-desk';
+    desk.className = 'company-card office-card-shell china-office-desk-surface empty-desk';
     desk.innerHTML = `
         <div class="desk-img-container">
-            <img src="img_shrimp_working.png" alt="牛马办公图" class="shrimp-desk-img">
-            <img src="img_empty_desk.png" alt="空工位" class="empty-desk-img">
+            <img src="office_bull_01.png" alt="牛马办公图" class="shrimp-desk-img">
+            <img src="office_horse_01.png" alt="空工位" class="empty-desk-img">
             <img src="penzai2.png" class="desk-penzai">
             <img src="penzai1.png" class="desk-penzai-2">
         </div>
@@ -7434,9 +8546,9 @@ function buildDeskControlPlaneBadges(empName, runs = [], heartbeats = {}) {
     const taskSummary = buildDeskTaskPostureSummary(empName);
     const recommendationBadge = buildDeskGovernanceRecommendationBadge(empName, taskSummary);
     return {
-        healthHtml: `<span class="desk-health-badge ${escapeHtml(healthSummary.tone)}" title="${escapeHtml(healthSummary.title)}">健康状态：${escapeHtml(healthSummary.label)}</span>`,
-        budgetHtml: `<span class="desk-budget-badge ${escapeHtml(budgetTone)}" title="点击查看控制卡">预算风险：${escapeHtml(budgetTone === 'hard-stop' ? '高' : budgetTone === 'warning' ? '中' : '低')}</span>`,
-        taskHtml: `<button type="button" class="desk-task-badge ${escapeHtml(taskSummary.tone)}" title="${escapeHtml(taskSummary.title)}" onclick="event.stopPropagation(); openDeskTaskFocusPanel('${escapeJsSingleQuotedString(empName)}')">待审核任务：${escapeHtml(String(taskSummary.inReviewCount))} / 阻塞任务：${escapeHtml(String(taskSummary.blockedCount))}</button>`,
+        healthHtml: `<span class="desk-health-badge desk-status-chip primary ${escapeHtml(healthSummary.tone)}" title="${escapeHtml(healthSummary.title)}">健康状态：${escapeHtml(healthSummary.label)}</span>`,
+        budgetHtml: `<span class="desk-budget-badge desk-status-chip secondary ${escapeHtml(budgetTone)}" title="点击查看控制卡">预算风险：${escapeHtml(budgetTone === 'hard-stop' ? '高' : budgetTone === 'warning' ? '中' : '低')}</span>`,
+        taskHtml: `<button type="button" class="desk-task-badge desk-status-chip secondary ${escapeHtml(taskSummary.tone)}" title="${escapeHtml(taskSummary.title)}" onclick="event.stopPropagation(); openDeskTaskFocusPanel('${escapeJsSingleQuotedString(empName)}')">待审核任务：${escapeHtml(String(taskSummary.inReviewCount))} / 阻塞任务：${escapeHtml(String(taskSummary.blockedCount))}</button>`,
         recommendationHtml: recommendationBadge
     };
 }
@@ -10542,7 +11654,7 @@ function buildBoardTaskControlPlaneSummary(task, project) {
     const lineageCard = renderBoardTaskLineageDetails(task, project);
     const recommendationHtml = renderTaskGovernanceRecommendation(task, employeeName);
     if (!pills && !actions && !posture && !recommendationHtml && !timeline && !runSummary && !inlineActions && !lineageCard) return '';
-    const governanceHtml = `${pills || actions ? `<div class="board-task-risk-row">${pills}${actions}</div>` : ''}${posture}${recommendationHtml}${inlineActions}`;
+    const governanceHtml = `${pills || actions ? `<div class="board-task-risk-row">${pills}${actions}</div>` : ''}${posture}${renderTaskGovernanceRecommendation(task, employeeName)}${inlineActions}`;
     const historyHtml = `${timeline}${runSummary}`;
     return `<div class="board-task-details-row">${renderBoardTaskDetailSection('治理与操作', governanceHtml, flags.length ? `${flags.length} 项提醒` : '可选')}${renderBoardTaskDetailSection('目标链', lineageCard, '上下文')}${renderBoardTaskDetailSection('执行历史', historyHtml, '运行记录')}</div>`;
 }
@@ -13942,7 +15054,7 @@ function editEmployee() {
         
 function renderEmployeeUI(deskElement, name, role) {
     if (!deskElement) return;
-    deskElement.className = 'company-card at-work';
+    deskElement.className = 'company-card office-card-shell china-office-desk-surface at-work';
 
     const deskId = 'desk_' + Math.random().toString(36).substr(2, 9);
     deskElement.dataset.deskId = deskId;
@@ -13950,8 +15062,8 @@ function renderEmployeeUI(deskElement, name, role) {
     const avatarImg = getAvatarByName(name);
 
     deskElement.innerHTML = `
-        <div class="chat-bubble" onclick="openReportFromBubble(event, this)">Idle</div>
-        <div class="desk-control-badge-row"><span class="desk-health-badge">健康状态：健康</span><span class="desk-budget-badge">预算风险：低</span></div>
+        <div class="chat-bubble compact-status-bubble" onclick="openReportFromBubble(event, this)">Idle</div>
+        <div class="desk-control-badge-row status-chip-rail"><span class="desk-health-badge desk-status-chip primary">健康状态：健康</span><span class="desk-budget-badge desk-status-chip secondary">预算风险：低</span></div>
         <div class="desk-img-container">
             <img src="${avatarImg}" alt="牛马办公图" class="shrimp-desk-img">
             <img src="img_empty_desk.png" alt="空工位" class="empty-desk-img">
@@ -14683,11 +15795,11 @@ setInterval(async () => {
                 console.warn('保存员工移除结果失败，但界面会继续更新：', e);
             }
 
-            currentTargetDesk.className = 'company-card empty-desk';
+            currentTargetDesk.className = 'company-card office-card-shell china-office-desk-surface empty-desk';
             currentTargetDesk.innerHTML = `
                 <div class="desk-img-container">
-                    <img src="img_shrimp_working.png" alt="牛马办公图" class="shrimp-desk-img">
-                    <img src="img_empty_desk.png" alt="空工位" class="empty-desk-img">
+                    <img src="office_bull_01.png" alt="牛马办公图" class="shrimp-desk-img">
+                    <img src="office_horse_01.png" alt="空工位" class="empty-desk-img">
                     <img src="penzai2.png" class="desk-penzai">
                     <img src="penzai1.png" class="desk-penzai-2">
                 </div>
