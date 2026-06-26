@@ -23,8 +23,8 @@ jobs:
           # === Linux 阵营 ===
           - { rid: linux-x64,   os: ubuntu-latest,    ext: tar.gz, exe: NiumaClaw.Team, use_upx: true }
           - { rid: linux-arm64, os: ubuntu-24.04-arm, ext: tar.gz, exe: NiumaClaw.Team, use_upx: false }
-          # 32位 ARM：锁定 ubuntu-22.04
-          - { rid: linux-arm,   os: ubuntu-22.04,     ext: tar.gz, exe: NiumaClaw.Team, use_upx: false }
+          # 32-bit linux-arm is disabled until GitHub runner apt sources support
+          # armhf cross-compilation reliably again.
 
           # === macOS 阵营 ===
           - { rid: osx-x64,   os: macos-latest,   ext: tar.gz, exe: NiumaClaw.Team, use_upx: false }
