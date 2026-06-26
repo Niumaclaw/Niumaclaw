@@ -1,5 +1,17 @@
 # Release Notes
 
+## v1.0.1 - Online Server Sync
+
+这个版本把 `niuma.wiki` 当前线上发布包作为最新版本同步回 GitHub 和本地源码。
+
+### Highlights
+
+- 同步服务器发布目录 `/opt/niumaclaw/releases/20260608115731` 的前端页面，`index.html` 与线上文件字节级一致。
+- 将线上 Team 服务 DLL 中的未推送后端能力恢复为源码，包括账号登录/注册、账户配置、Agent Node 注册/轮询/下载、看板审批状态等接口。
+- 加入线上使用的 `agent_runner.py`，保证桌面 Agent 节点下载入口可随源码构建输出。
+- 修正版本号为 `1.0.1+online.20260608115731`，不再把旧 GitHub 提交 `3d0b773` 标记为最新版。
+- 记录服务器发布包关键文件哈希，方便后续确认源码同步来源。
+
 ## v0.1.0 - First Public Preview
 
 NiumaClaw v0.1.0 是第一个面向 GitHub 展示和试用的公开预览版本，重点是把项目包装完整，并让使用者快速理解它解决的问题。

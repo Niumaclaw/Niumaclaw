@@ -1,0 +1,47 @@
+{
+  "version": "1.0.1",
+  "informationalVersion": "1.0.1+online.20260608115731",
+  "syncedAt": "2026-06-26",
+  "server": "115.29.184.198",
+  "domain": "niuma.wiki",
+  "releasePath": "/opt/niumaclaw/releases/20260608115731",
+  "currentSymlink": "/opt/niumaclaw/current",
+  "previousAssemblyInformationalVersion": "1.0.0+3d0b773c63ce7826e242cd77e42f8a42419db658",
+  "hashes": {
+    "team/index.html": {
+      "sha256": "f633460562fd57eab4b186dfb30834555b2e2cf13d7f4afde16d9829055d0702",
+      "bytes": 925798
+    },
+    "team/agent_runner.py": {
+      "sha256": "18a3c4001683cca3311db3da4765737a4d755bdf9db4f1b232cad2da8e2f2213",
+      "bytes": 7629
+    },
+    "team/NiumaClaw.Team.dll": {
+      "sha256": "6855b613ed7012110aa009b53e726354d2586ff6ba4d9291ae2d771dd3f07749",
+      "bytes": 5886464
+    },
+    "team/NiumaClaw.Team": {
+      "sha256": "e71f6b0eecd6e3b9634022ebbd9df3500c027128fd31afdc9bbf724641c5a562",
+      "bytes": 78256
+    },
+    "team/Npgsql.dll": {
+      "sha256": "6c74f02211d3c2323db73c7c3c88bf610e9ee95e3f84dd6ea5d630eef9895c1b",
+      "bytes": 1478144,
+      "nuget": "Npgsql/10.0.2"
+    },
+    "team/downloads/NiumaClaw-Desktop-Setup.exe": {
+      "sha256": "873954b80d48623c7735bb3f3bc171b2c66e0b15fad8a18296313298af21f129",
+      "bytes": 52056886,
+      "committed": false
+    },
+    "localnode/NiumaClaw.LocalNode.dll": {
+      "sha256": "3f40fb6156338525ed86e95ee54c82784da6e1b979afb7477225b7866c45f9cd",
+      "bytes": 514560
+    }
+  },
+  "notes": [
+    "Repository root index.html is copied byte-for-byte from team/index.html.",
+    "Team source was recovered from team/NiumaClaw.Team.dll with ilspycmd and normalized into NiumaClaw.Team/*.cs.",
+    "Large publish binaries are not committed to Git; their hashes are recorded here for traceability."
+  ]
+}

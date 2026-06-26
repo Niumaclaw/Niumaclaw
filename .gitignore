@@ -64,6 +64,7 @@ $RECYCLE.BIN/
 *.msix
 *.msm
 *.msp
+downloads/NiumaClaw-Desktop-Setup.exe
 
 # Windows shortcuts
 *.lnk

@@ -1,16 +1,17 @@
-
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
+    <AssemblyName>NiumaClaw.Team</AssemblyName>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
+    <Version>1.0.1</Version>
+    <FileVersion>1.0.1.0</FileVersion>
+    <InformationalVersion>1.0.1+online.20260608115731</InformationalVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>NiumaClaw.Team</AssemblyName>
 
     <PublishAot>true</PublishAot>
     <OptimizationPreference>Size</OptimizationPreference>
-    
     <StackTraceSupport>false</StackTraceSupport>
     <InvariantGlobalization>true</InvariantGlobalization>
     <DebuggerSupport>false</DebuggerSupport>
@@ -22,42 +23,72 @@
     <MetricsSupport>false</MetricsSupport>
     <EventPipeSupport>false</EventPipeSupport>
     <ControlFlowGuard>false</ControlFlowGuard>
-    
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <StripSymbols>true</StripSymbols>
-
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
-
     <TrimMode>full</TrimMode>
     <IlcTrimMetadata>true</IlcTrimMetadata>
     <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
     <IlcGenerateCompleteTypeMetadata>false</IlcGenerateCompleteTypeMetadata>
     <IlcOptimizationPreference>Size</IlcOptimizationPreference>
   </PropertyGroup>
-
-	<ItemGroup>
-		<EmbeddedResource Include="img_shrimp_working.png" />
-		<EmbeddedResource Include="img_empty_desk.png" />
-		<EmbeddedResource Include="office_bull_01.png" />
-		<EmbeddedResource Include="office_horse_01.png" />
-		<EmbeddedResource Include="penzai1.png" />
-		<EmbeddedResource Include="penzai2.png" />
-		<EmbeddedResource Include="penzai3.png" />
-		<EmbeddedResource Include="penzai4.png" />
-
-		<EmbeddedResource Include="1.png" />
-		<EmbeddedResource Include="2.png" />
-		<EmbeddedResource Include="3.png" />
-		<EmbeddedResource Include="4.png" />
-		<EmbeddedResource Include="5.png" />
-		<EmbeddedResource Include="6.png" />
-		<EmbeddedResource Include="7.png" />
-		<EmbeddedResource Include="8.png" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<None Include="index.html" CopyToOutputDirectory="Always" />
-	</ItemGroup>
-
+  <PropertyGroup>
+    <LangVersion>preview</LangVersion>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <CheckForOverflowUnderflow>False</CheckForOverflowUnderflow>
+  </PropertyGroup>
+  <PropertyGroup>
+    <RootNamespace />
+  </PropertyGroup>
+  <ItemGroup>
+    <None Remove="NiumaClaw.Team.img_shrimp_working.png" />
+    <None Remove="NiumaClaw.Team.img_empty_desk.png" />
+    <None Remove="NiumaClaw.Team.office_bull_01.png" />
+    <None Remove="NiumaClaw.Team.office_horse_01.png" />
+    <None Remove="NiumaClaw.Team.penzai1.png" />
+    <None Remove="NiumaClaw.Team.penzai2.png" />
+    <None Remove="NiumaClaw.Team.penzai3.png" />
+    <None Remove="NiumaClaw.Team.penzai4.png" />
+    <None Remove="NiumaClaw.Team.avatar_default_01.png" />
+    <None Remove="NiumaClaw.Team.avatar_default_02.png" />
+    <None Remove="NiumaClaw.Team.avatar_default_03.png" />
+    <None Remove="NiumaClaw.Team.avatar_default_04.png" />
+    <None Remove="NiumaClaw.Team.1.png" />
+    <None Remove="NiumaClaw.Team.2.png" />
+    <None Remove="NiumaClaw.Team.3.png" />
+    <None Remove="NiumaClaw.Team.4.png" />
+    <None Remove="NiumaClaw.Team.5.png" />
+    <None Remove="NiumaClaw.Team.6.png" />
+    <None Remove="NiumaClaw.Team.7.png" />
+    <None Remove="NiumaClaw.Team.8.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.img_shrimp_working.png" LogicalName="NiumaClaw.Team.img_shrimp_working.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.img_empty_desk.png" LogicalName="NiumaClaw.Team.img_empty_desk.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.office_bull_01.png" LogicalName="NiumaClaw.Team.office_bull_01.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.office_horse_01.png" LogicalName="NiumaClaw.Team.office_horse_01.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.penzai1.png" LogicalName="NiumaClaw.Team.penzai1.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.penzai2.png" LogicalName="NiumaClaw.Team.penzai2.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.penzai3.png" LogicalName="NiumaClaw.Team.penzai3.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.penzai4.png" LogicalName="NiumaClaw.Team.penzai4.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.avatar_default_01.png" LogicalName="NiumaClaw.Team.avatar_default_01.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.avatar_default_02.png" LogicalName="NiumaClaw.Team.avatar_default_02.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.avatar_default_03.png" LogicalName="NiumaClaw.Team.avatar_default_03.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.avatar_default_04.png" LogicalName="NiumaClaw.Team.avatar_default_04.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.1.png" LogicalName="NiumaClaw.Team.1.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.2.png" LogicalName="NiumaClaw.Team.2.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.3.png" LogicalName="NiumaClaw.Team.3.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.4.png" LogicalName="NiumaClaw.Team.4.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.5.png" LogicalName="NiumaClaw.Team.5.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.6.png" LogicalName="NiumaClaw.Team.6.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.7.png" LogicalName="NiumaClaw.Team.7.png" />
+    <EmbeddedResource Include="NiumaClaw.Team.8.png" LogicalName="NiumaClaw.Team.8.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="index.html" CopyToOutputDirectory="Always" />
+    <None Include="agent_runner.py" CopyToOutputDirectory="Always" />
+    <None Include="downloads/NiumaClaw-Desktop-Setup.exe" CopyToOutputDirectory="PreserveNewest" Condition="Exists('downloads/NiumaClaw-Desktop-Setup.exe')" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="10.0.2" />
+  </ItemGroup>
 </Project>

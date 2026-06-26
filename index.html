@@ -13,10 +13,16 @@
             font-family: 'Arial Rounded MT Bold', 'Helvetica Rounded', sans-serif;
             background-color: #ffffff;
             margin: 0;
-            padding: 10px;
+            padding: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+        html {
+            max-width: 100%;
+            overflow-x: hidden;
         }
 
         .task-badge {
@@ -45,71 +51,110 @@
 
 
         .header-container {
-            width: 100vw;
+            align-self: flex-start;
+            width: min(100%, calc(100vw - 12px));
+            max-width: none;
             box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            margin-bottom: 30px;
-            padding: 20px 30px;
-            background: rgba(255, 255, 255, 0.35);
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 14px;
+            align-items: start;
+            margin: 6px 0 12px 6px;
+            padding: 12px 16px 16px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.32), rgba(255,255,255,0.16));
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 12px 34px rgba(74, 63, 53, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.44);
+            border-radius: 18px;
             color: #4a3f35;
         }
-        @media (min-width: 900px) {
+        @media (min-width: 900px) and (max-width: 1279px) {
             .header-container {
-                flex-direction: row;
-                align-items: flex-start;
+                grid-template-columns: minmax(360px, 470px) minmax(0, 1fr);
+                gap: 18px;
+                justify-content: start;
+            }
+        }
+        @media (min-width: 1280px) {
+            .header-container {
+                width: min(100%, calc(100vw - 12px));
+                max-width: calc(100vw - 12px);
+                grid-template-columns: minmax(390px, 520px) minmax(0, 1fr) 230px;
+                gap: 14px;
+                justify-content: start;
+            }
+            .guide-right {
+                max-width: none;
+            }
+        }
+        @media (min-width: 1600px) {
+            .header-container {
+                width: min(100%, calc(100vw - 12px));
+                grid-template-columns: 520px minmax(0, 1fr) 260px;
+                gap: 18px;
+            }
+            .guide-right {
+                max-width: none;
             }
         }
         .header-left {
-            flex: 1 1 0;
             min-width: 0;
             display: flex;
             flex-direction: column;
             justify-content: flex-start;
         }
+        .header-left > div:first-child {
+            margin-bottom: 8px !important;
+        }
         .header-left h1 {
-            margin: 0 0 8px 0;
-            font-size: 2.2rem;
+            margin: 0 0 6px 0;
+            font-size: 1.86rem !important;
             text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
-            letter-spacing: 2px;
+            letter-spacing: 0;
         }
         .header-left p {
-            margin: 0;
-            font-size: 1.05rem;
+            margin: 6px 0 0;
+            font-size: 0.93rem;
             color: #5c4e40;
             font-weight: 600;
         }
         #controlPlaneOverviewStrip {
             --overview-columns: 3;
-            grid-template-columns: repeat(var(--overview-columns), minmax(118px, 156px)) !important;
+            grid-template-columns: repeat(var(--overview-columns), minmax(104px, 1fr)) !important;
+            gap: 8px !important;
             justify-content: start;
         }
         #controlPlaneOverviewStrip > div {
-            min-height: 48px;
-            padding: 8px 10px !important;
+            min-height: 42px;
+            padding: 7px 10px !important;
         }
 
 
         .guide-right {
-            flex: 1 1 0;
             box-sizing: border-box;
-            align-self: flex-start;
-            background: rgba(255, 255, 255, 0.6);
-            border-radius: 12px;
-            padding: 15px 20px;
+            align-self: stretch;
+            background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.88));
+            border-radius: 16px;
+            padding: 18px 22px 14px;
             min-width: 0;
             min-height: 0;
-            max-height: var(--guide-panel-height, none);
+            width: 100%;
+            max-width: 760px;
+            max-height: none;
             overflow-y: auto;
+            overflow-x: hidden;
             overscroll-behavior: contain;
-            border: 1px solid rgba(255, 255, 255, 0.9);
-            box-shadow: inset 0 2px 6px rgba(0,0,0,0.05);
+            border: 1px solid rgba(74, 63, 53, 0.14);
+            border-left: 5px solid rgba(22, 160, 133, 0.56);
+            box-shadow: 0 14px 34px rgba(74, 63, 53, 0.15);
             text-align: left;
+        }
+        @media (min-width: 900px) {
+            .guide-right {
+                height: var(--guide-panel-height, auto);
+                max-height: var(--guide-panel-height, none);
+            }
         }
         @media (max-width: 899px) {
             .header-left,
@@ -127,21 +172,229 @@
         }
         .guide-right::-webkit-scrollbar { width: 6px; }
         .guide-right::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 3px; }
-        .guide-right h1, .guide-right h2, .guide-right h3 { margin-top: 0; margin-bottom: 8px; font-size: 1.2rem; color: #333;}
-        .guide-right p { margin-top: 0; margin-bottom: 10px; font-size: 0.95rem; color: #444; line-height: 1.5; }
-        .guide-right ul, .guide-right ol { margin-top: 0; padding-left: 20px; font-size: 0.95rem; color: #444;}
+        .guide-right #onboardingGuide { max-width: 700px; }
+        .guide-right #onboardingGuide > *:first-child { margin-top: 0 !important; }
+        .guide-right #onboardingGuide > *:last-child { margin-bottom: 0 !important; }
+        .guide-right h1, .guide-right h2, .guide-right h3 { margin-top: 0; margin-bottom: 9px; font-size: 1.08rem; line-height: 1.35; color: #333;}
+        .guide-right h2, .guide-right h3 { padding-top: 3px; }
+        .guide-right p { margin-top: 0; margin-bottom: 9px; font-size: 0.9rem; color: #444; line-height: 1.55; }
+        .guide-right ul, .guide-right ol { margin-top: 0; margin-bottom: 10px; padding-left: 19px; font-size: 0.9rem; color: #444; line-height: 1.5;}
+        .guide-right li { margin-bottom: 2px; }
+        .guide-right hr { margin: 10px 0; border: 0; border-top: 1px solid rgba(74, 63, 53, 0.18); }
+        @media (min-width: 1600px) {
+            .guide-right {
+                max-width: none !important;
+            }
+            .guide-right #onboardingGuide {
+                max-width: 900px;
+            }
+        }
+        .header-side-panel {
+            position: fixed;
+            top: 10px;
+            right: 12px;
+            z-index: 22000;
+        }
+        .header-account-shell {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: flex-end;
+        }
+        .header-side-content {
+            display: none;
+        }
+        .header-side-identity {
+            display: contents;
+        }
+        .header-side-identity .header-side-account-meta {
+            display: none;
+        }
+        #accountBar {
+            position: static !important;
+            top: auto !important;
+            right: auto !important;
+        }
+        @media (min-width: 1280px) {
+            .header-side-panel {
+                position: static;
+                z-index: auto;
+                min-width: 0;
+                align-self: start;
+                display: flex;
+                flex-direction: column;
+                height: var(--guide-panel-height, auto);
+                max-height: var(--guide-panel-height, none);
+            }
+            .header-account-shell {
+                width: 100%;
+                height: 100%;
+                min-height: 0;
+                box-sizing: border-box;
+                overflow: hidden;
+                padding: 12px;
+                border-radius: 16px;
+                border: 1px solid rgba(255, 255, 255, 0.42);
+                background: linear-gradient(180deg, rgba(255,255,255,0.24), rgba(255,255,255,0.10));
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.24);
+                gap: 10px;
+            }
+            .header-side-identity {
+                display: grid;
+                grid-template-columns: 56px minmax(0, 1fr);
+                align-items: center;
+                gap: 10px;
+            }
+            #accountBar {
+                width: auto;
+                justify-content: flex-start;
+                box-sizing: border-box;
+                padding: 0 !important;
+                background: transparent !important;
+                border: 0 !important;
+                box-shadow: none !important;
+            }
+            #accountProfileBtn {
+                width: 52px !important;
+                height: 52px !important;
+                border: 3px solid rgba(255,255,255,0.82) !important;
+                box-shadow: 0 10px 22px rgba(74,63,53,0.18) !important;
+            }
+            #accountAdminBtn,
+            #accountLogoutBtn {
+                display: none !important;
+            }
+            .header-side-content {
+                width: 100%;
+                min-height: 0;
+                display: flex;
+                flex: 1;
+                flex-direction: column;
+                overflow: hidden;
+                gap: 9px;
+            }
+            .header-side-title {
+                font-size: 13px;
+                font-weight: 900;
+                color: #4a3f35;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            .header-side-title span:last-child {
+                color: #0f766e;
+                font-size: 11px;
+            }
+            .header-side-account-meta {
+                display: block;
+                min-width: 0;
+                border-radius: 12px;
+                padding: 7px 9px;
+                background: rgba(255,255,255,0.58);
+                border: 1px solid rgba(148,163,184,0.20);
+            }
+            .header-side-identity .header-side-account-meta {
+                display: block;
+            }
+            .header-side-account-name {
+                display: block;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                color: #172033;
+                font-weight: 900;
+                font-size: 13px;
+                line-height: 1.25;
+            }
+            .header-side-account-contact {
+                display: block;
+                margin-top: 4px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                color: #64748b;
+                font-weight: 700;
+                font-size: 11px;
+            }
+            .header-side-stats {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+            }
+            .header-side-stat {
+                border-radius: 12px;
+                padding: 8px 9px;
+                background: rgba(255,255,255,0.72);
+                border: 1px solid rgba(148,163,184,0.26);
+                box-shadow: 0 6px 16px rgba(74,63,53,0.08);
+            }
+            .header-side-stat.good { background: #ecfdf5; border-color: #a7f3d0; }
+            .header-side-stat.warning { background: #fff7ed; border-color: #fdba74; }
+            .header-side-stat.danger { background: #fff1f2; border-color: #fecdd3; }
+            .header-side-stat-label {
+                font-size: 11px;
+                color: #64748b;
+                font-weight: 800;
+            }
+            .header-side-stat-value {
+                margin-top: 2px;
+                font-size: 17px;
+                line-height: 1;
+                color: #0f172a;
+                font-weight: 900;
+            }
+            .header-side-stat-detail {
+                margin-top: 5px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                color: #64748b;
+                font-size: 10px;
+                font-weight: 800;
+            }
+            .header-side-actions {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 8px;
+                margin-top: auto;
+            }
+            .header-side-action {
+                border: 0;
+                border-radius: 10px;
+                padding: 9px 10px;
+                cursor: pointer;
+                color: #fff;
+                background: linear-gradient(135deg, #0f766e, #14b8a6);
+                font-size: 12px;
+                font-weight: 900;
+                text-align: left;
+                box-shadow: 0 8px 18px rgba(15,118,110,0.16);
+            }
+            .header-side-action.secondary {
+                background: linear-gradient(135deg, #34495e, #2c3e50);
+                box-shadow: 0 8px 18px rgba(44,62,80,0.16);
+            }
+            .header-side-action.neutral {
+                color: #172033;
+                background: rgba(255,255,255,0.78);
+                border: 1px solid rgba(148,163,184,0.28);
+                box-shadow: 0 8px 18px rgba(74,63,53,0.08);
+            }
+        }
 
 .top-btn {
-    padding: 10px 18px;
+    padding: 9px 12px;
     border: none;
     border-radius: 8px;
     cursor: pointer;
     font-weight: bold;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     color: #fff;
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    min-height: 40px;
+    line-height: 1;
     transition: all 0.3s ease; 
 }
 
@@ -158,6 +411,7 @@
 .btn-deploy   { background: linear-gradient(135deg, #16a085, #27ae60); box-shadow: 0 4px 10px rgba(39, 174, 96, 0.3); }
 .btn-board    { background: linear-gradient(135deg, #2980b9, #8e44ad); box-shadow: 0 4px 10px rgba(41, 128, 185, 0.3); }
 .btn-demo     { background: linear-gradient(135deg, #0f766e, #14b8a6); box-shadow: 0 4px 10px rgba(20, 184, 166, 0.3); }
+.btn-client   { background: linear-gradient(135deg, #0e7490, #0891b2); box-shadow: 0 4px 10px rgba(8, 145, 178, 0.3); }
 .btn-sop      { background: linear-gradient(135deg, #34495e, #2c3e50); box-shadow: 0 4px 10px rgba(44, 62, 80, 0.3); }
 
 .btn-boss     { background: linear-gradient(135deg, #27ae60, #2ecc71); box-shadow: 0 4px 10px rgba(39, 174, 96, 0.3); }
@@ -167,13 +421,13 @@
 .btn-group-wrapper {
     display: flex;
     flex-direction: column;
-    gap: 12px; 
-    margin-top: 0; 
-    padding-top: 4px;
+    gap: 8px; 
+    margin-top: 8px; 
+    padding-top: 0;
 }
 .btn-row {
     display: flex;
-    gap: 10px;
+    gap: 7px;
     flex-wrap: wrap;
 }
 
@@ -181,14 +435,16 @@
             display: grid;
             grid-template-columns: repeat(2, 1fr);
             gap: 18px;
-            width: 100%;
-            max-width: 1600px;
+            width: min(100%, calc(100vw - 24px));
+            max-width: none;
+            box-sizing: border-box;
+            overflow-x: clip;
         }
 
         @media (min-width: 768px) {
             .desk-grid {
-                grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-                gap: 24px;
+                grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+                gap: 22px;
             }
         }
 
@@ -991,6 +1247,7 @@
 .board-delivery-stat span { display:block; color:#64748b; font-size:12px; font-weight:700; }
 .board-delivery-stat strong { display:block; color:#0f172a; font-size:20px; margin-top:2px; }
 .board-task-card { gap: 10px; border:1px solid #e2e8f0; border-radius:12px; padding:12px !important; margin-top:10px; background:#fff; box-shadow:0 6px 16px rgba(15,23,42,0.04); }
+.board-task-card.approval { border-color:#f59e0b; background:linear-gradient(180deg,#fffbeb 0%,#ffffff 58%); box-shadow:0 8px 20px rgba(180,83,9,0.10); }
 .task-row.board-task-card { border-bottom:none; }
 .board-task-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; width:100%; }
 .board-task-main { min-width:0; flex:1; display:flex; flex-direction:column; gap:7px; }
@@ -1005,18 +1262,23 @@
 .board-task-primary-btn, .board-task-secondary-btn { padding:7px 12px; border:none; border-radius:999px; cursor:pointer; font-size:12px; font-weight:800; white-space:nowrap; }
 .board-task-primary-btn { color:#fff; background:linear-gradient(135deg,#2563eb,#0ea5e9); box-shadow:0 8px 16px rgba(37,99,235,0.18); }
 .board-task-primary-btn.warning { color:#92400e; background:#fef3c7; box-shadow:none; }
+.board-task-primary-btn.approval { color:#92400e; background:#fef3c7; border:1px solid #fde68a; box-shadow:none; }
 .board-task-primary-btn.neutral { color:#475569; background:#e2e8f0; box-shadow:none; cursor:default; }
 .board-task-secondary-btn { color:#1d4ed8; background:#eff6ff; }
+.board-task-secondary-btn.approve { color:#047857; background:#dcfce7; }
 .board-task-secondary-btn.danger { color:#dc2626; background:#fee2e2; }
 .board-task-delivery-grid { display:grid; grid-template-columns:minmax(0, 1fr) minmax(220px, 0.72fr); gap:10px; width:100%; }
 .board-task-delivery-card { border:1px solid #dbeafe; border-radius:10px; background:linear-gradient(180deg,#ffffff,#f8fbff); padding:12px; min-width:0; }
 .board-task-delivery-card.summary { border-color:#bbf7d0; background:linear-gradient(180deg,#f0fdf4,#ffffff); }
+.board-task-delivery-card.summary.approval { border-color:#fde68a; background:linear-gradient(180deg,#fffbeb,#ffffff); }
 .board-task-delivery-card.summary.error { border-color:#fecaca; background:linear-gradient(180deg,#fef2f2,#ffffff); }
 .board-task-delivery-card.summary.cancelled { border-color:#fed7aa; background:linear-gradient(180deg,#fff7ed,#ffffff); }
 .board-task-delivery-label { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; color:#0f766e; font-size:12px; font-weight:800; }
+.board-task-delivery-card.summary.approval .board-task-delivery-label { color:#b45309; }
 .board-task-delivery-card.summary.error .board-task-delivery-label { color:#b91c1c; }
 .board-task-delivery-card.summary.cancelled .board-task-delivery-label { color:#c2410c; }
 .board-task-delivery-status { padding:2px 7px; border-radius:999px; background:rgba(15,118,110,0.1); color:#0f766e; font-size:10px; font-weight:800; white-space:nowrap; }
+.board-task-delivery-card.summary.approval .board-task-delivery-status { background:#fef3c7; color:#92400e; }
 .board-task-delivery-card.summary.error .board-task-delivery-status { background:#fee2e2; color:#b91c1c; }
 .board-task-delivery-card.summary.cancelled .board-task-delivery-status { background:#ffedd5; color:#c2410c; }
 .board-task-delivery-text { margin:0; color:#334155; font-size:13px; line-height:1.7; white-space:normal; word-break:break-word; }
@@ -1260,7 +1522,7 @@
 .agent-process-log-item.stdout { border-color:#334155; }
 .agent-process-log-meta { font-size:11px; color:#94a3b8; margin-bottom:4px; }
 .agent-artifact-link { display: block; margin-bottom: 6px; word-break: break-all; }
-.app-dialog-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.42); z-index: 10080; display: none; align-items: center; justify-content: center; padding: 24px; backdrop-filter: blur(5px); }
+.app-dialog-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.42); z-index: 60000; display: none; align-items: center; justify-content: center; padding: 24px; backdrop-filter: blur(5px); }
 .app-dialog-card { width: min(460px, 92vw); background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); border-radius: 22px; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22); border: 1px solid rgba(148, 163, 184, 0.25); overflow: hidden; }
 .app-dialog-head { display: flex; gap: 14px; align-items: flex-start; padding: 22px 22px 16px; }
 .app-dialog-icon { width: 42px; height: 42px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
@@ -1270,6 +1532,8 @@
 .app-dialog-icon.error { background: #fee2e2; color: #b91c1c; }
 .app-dialog-title { margin: 0; font-size: 20px; font-weight: 800; color: #0f172a; }
 .app-dialog-message { margin: 8px 0 0; font-size: 14px; line-height: 1.7; color: #475569; white-space: pre-wrap; }
+.app-dialog-input { box-sizing: border-box; width: 100%; height: 46px; margin-top: 16px; padding: 0 14px; border: 1px solid #cbd5e1; border-radius: 14px; background: #fff; color: #0f172a; font-size: 14px; outline: none; }
+.app-dialog-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12); }
 .app-dialog-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 0 22px 22px; }
 .app-dialog-btn { border: none; border-radius: 999px; padding: 11px 18px; font-size: 14px; font-weight: 700; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
 .app-dialog-btn:hover { transform: translateY(-1px); }
@@ -1284,6 +1548,121 @@
 </head>
 
 <body style="margin:0; padding:0; width:100vw; height:100vh; background-color:#ab9980; ">
+    <div id="authGate" style="display:none; position:fixed; inset:0; z-index:20000; background:linear-gradient(135deg,#ab9980,#f8fafc); align-items:center; justify-content:center; padding:24px;">
+        <div style="box-sizing:border-box; width:min(760px,92vw); background:#fff; border:1px solid rgba(148,163,184,0.35); border-radius:28px; box-shadow:0 24px 80px rgba(15,23,42,0.25); padding:28px 30px;">
+            <div id="authEyebrow" style="font-size:13px; color:#64748b; font-weight:800; margin-bottom:4px;">账号登录</div>
+            <h2 id="authTitle" style="margin:0 0 20px; color:#172033; font-size:42px; line-height:1.08; letter-spacing:0;">账号登录</h2>
+
+            <div id="loginForm">
+                <div style="display:grid; grid-template-columns:1fr 1fr; border:1px solid #cbd5e1; border-radius:999px; overflow:hidden; margin-bottom:26px; background:#f8fafc;">
+                    <button id="codeLoginTab" onclick="setLoginMode('code')" style="height:40px; border:0; background:#2563eb; color:#fff; font-weight:800; cursor:pointer;">验证码登录</button>
+                    <button id="passwordLoginTab" onclick="setLoginMode('password')" style="height:40px; border:0; background:transparent; color:#64748b; font-weight:800; cursor:pointer;">密码登录</button>
+                </div>
+                <label style="display:block; font-size:14px; color:#172033; margin-bottom:10px;">邮箱</label>
+                <input id="authIdentifier" type="email" autocomplete="email" style="box-sizing:border-box; width:100%; height:48px; margin:0 0 24px; padding:0 16px; border:1px solid #cbd5e1; border-radius:16px; background:#fff; font-size:16px;" placeholder="email@example.com">
+                <div id="loginCodeRow">
+                    <label style="display:block; font-size:14px; color:#172033; margin-bottom:10px;">验证码</label>
+                    <div style="display:grid; grid-template-columns:1fr 128px; gap:10px; margin-bottom:22px;">
+                        <input id="authCode" style="box-sizing:border-box; width:100%; height:48px; padding:0 16px; border:1px solid #cbd5e1; border-radius:16px; background:#fff; font-size:16px;" placeholder="输入验证码">
+                        <button id="loginCodeBtn" onclick="requestAuthCode('login')" style="border:0; border-radius:999px; background:#0f766e; color:#fff; font-weight:900; cursor:pointer;">获取验证码</button>
+                    </div>
+                </div>
+                <div id="loginPasswordRow" style="display:none;">
+                    <label style="display:block; font-size:14px; color:#172033; margin-bottom:10px;">密码</label>
+                    <input id="authPassword" type="password" style="box-sizing:border-box; width:100%; height:48px; margin:0 0 22px; padding:0 16px; border:1px solid #cbd5e1; border-radius:16px; background:#fff; font-size:16px;" placeholder="请输入密码">
+                </div>
+                <label style="display:flex; align-items:center; gap:10px; color:#334155; font-size:14px; margin-bottom:24px;">
+                    <input id="authAgreement" type="checkbox"> 我已阅读并同意《用户协议》和《隐私政策》
+                </label>
+                <button onclick="loginAccount()" style="width:100%; height:48px; border:0; border-radius:999px; background:#2563eb; color:#fff; font-size:15px; font-weight:900; cursor:pointer;">登录</button>
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:18px;">
+                    <button onclick="setAuthPanel('register')" style="border:0; background:transparent; color:#0f766e; font-weight:900; cursor:pointer;">注册账号</button>
+                    <button onclick="setAuthPanel('reset')" style="border:0; background:transparent; color:#64748b; font-weight:800; cursor:pointer;">找回密码</button>
+                </div>
+            </div>
+
+            <div id="registerForm" style="display:none;">
+                <label style="display:block; font-size:14px; color:#172033; margin-bottom:10px;">邮箱</label>
+                <input id="authRegisterIdentifier" type="email" autocomplete="email" style="box-sizing:border-box; width:100%; height:48px; margin:0 0 18px; padding:0 16px; border:1px solid #cbd5e1; border-radius:16px; background:#fff; font-size:16px;" placeholder="email@example.com">
+                <div style="display:grid; grid-template-columns:1fr 128px; gap:10px; margin-bottom:18px;">
+                    <input id="authRegisterCode" style="box-sizing:border-box; width:100%; height:48px; padding:0 16px; border:1px solid #cbd5e1; border-radius:16px; background:#fff; font-size:16px;" placeholder="输入验证码">
+                    <button id="registerCodeBtn" onclick="requestAuthCode('register')" style="border:0; border-radius:999px; background:#0f766e; color:#fff; font-weight:900; cursor:pointer;">获取验证码</button>
+                </div>
+                <input id="authRegisterPassword" type="password" style="box-sizing:border-box; width:100%; height:48px; margin:0 0 18px; padding:0 16px; border:1px solid #cbd5e1; border-radius:16px; background:#fff; font-size:16px;" placeholder="设置密码">
+                <input id="authDisplayName" style="box-sizing:border-box; width:100%; height:48px; margin:0 0 22px; padding:0 16px; border:1px solid #cbd5e1; border-radius:16px; background:#fff; font-size:16px;" placeholder="注册昵称（可选）">
+                <button onclick="registerAccount()" style="width:100%; height:48px; border:0; border-radius:999px; background:#16a34a; color:#fff; font-size:15px; font-weight:900; cursor:pointer;">注册并进入</button>
+                <button onclick="setAuthPanel('login')" style="margin-top:16px; border:0; background:transparent; color:#64748b; font-weight:800; cursor:pointer;">已有账号，返回登录</button>
+            </div>
+
+            <div id="resetForm" style="display:none;">
+                <label style="display:block; font-size:14px; color:#172033; margin-bottom:10px;">邮箱</label>
+                <input id="authResetIdentifier" type="email" autocomplete="email" style="box-sizing:border-box; width:100%; height:48px; margin:0 0 18px; padding:0 16px; border:1px solid #cbd5e1; border-radius:16px; background:#fff; font-size:16px;" placeholder="注册时使用的邮箱">
+                <div style="display:grid; grid-template-columns:1fr 128px; gap:10px; margin-bottom:18px;">
+                    <input id="authResetCode" style="box-sizing:border-box; width:100%; height:48px; padding:0 16px; border:1px solid #cbd5e1; border-radius:16px; background:#fff; font-size:16px;" placeholder="输入验证码">
+                    <button id="resetCodeBtn" onclick="requestAuthCode('reset')" style="border:0; border-radius:999px; background:#0f766e; color:#fff; font-weight:900; cursor:pointer;">获取验证码</button>
+                </div>
+                <input id="authResetPassword" type="password" style="box-sizing:border-box; width:100%; height:48px; margin:0 0 22px; padding:0 16px; border:1px solid #cbd5e1; border-radius:16px; background:#fff; font-size:16px;" placeholder="设置新密码">
+                <button onclick="resetPassword()" style="width:100%; height:48px; border:0; border-radius:999px; background:#2563eb; color:#fff; font-size:15px; font-weight:900; cursor:pointer;">重置密码</button>
+                <button onclick="setAuthPanel('login')" style="margin-top:16px; border:0; background:transparent; color:#64748b; font-weight:800; cursor:pointer;">返回登录</button>
+            </div>
+
+            <div id="authStatus" style="margin-top:18px; min-height:20px; color:#be123c; font-size:14px;"></div>
+        </div>
+    </div>
+    <div id="accountBar" style="display:none; position:fixed; top:10px; right:12px; z-index:22000; gap:8px; align-items:center; background:rgba(255,255,255,0.92); border:1px solid rgba(148,163,184,0.35); border-radius:999px; padding:6px 8px; box-shadow:0 8px 20px rgba(15,23,42,0.14);">
+        <button id="accountProfileBtn" onclick="openAccountProfileModal()" title="账号资料" style="width:34px; height:34px; border-radius:50%; border:0; background:#e0f2fe; cursor:pointer; overflow:hidden; padding:0;"><img id="accountAvatarImg" src="" alt="" style="width:100%; height:100%; object-fit:cover; display:none;"><span id="accountAvatarText" style="font-weight:900; color:#075985;">我</span></button>
+        <button id="accountLoginBtn" onclick="showAuthGate()" style="display:none; border:0; border-radius:999px; padding:8px 10px; background:#0f766e; color:#fff; font-weight:800; cursor:pointer;">登录/注册</button>
+        <button id="accountAdminBtn" onclick="location.href='/admin'" style="border:0; border-radius:999px; padding:8px 10px; background:#2563eb; color:#fff; font-weight:800; cursor:pointer;">后台</button>
+        <button id="accountLogoutBtn" onclick="logoutAccount()" style="border:0; border-radius:999px; padding:8px 10px; background:#e2e8f0; color:#172033; font-weight:800; cursor:pointer;">退出</button>
+    </div>
+    <div id="accountProfileModal" style="display:none; position:fixed; inset:0; z-index:21000; background:rgba(15,23,42,0.45); align-items:center; justify-content:center; padding:24px;" onclick="if(event.target===this)this.style.display='none'">
+        <div style="width:min(480px,94vw); background:#fff; border-radius:14px; padding:22px; box-shadow:0 24px 80px rgba(15,23,42,0.25);">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 12px;">
+                <h3 style="margin:0;">账号资料</h3>
+                <button onclick="document.getElementById('accountProfileModal').style.display='none'" style="border:0; border-radius:999px; padding:7px 12px; background:#e2e8f0; color:#172033; font-weight:800; cursor:pointer;">关闭</button>
+            </div>
+            <label style="font-size:12px; color:#64748b; font-weight:700;">昵称</label>
+            <input id="profileDisplayName" style="box-sizing:border-box; width:100%; margin:4px 0 10px; padding:11px; border:1px solid #cbd5e1; border-radius:8px;">
+            <label style="font-size:12px; color:#64748b; font-weight:700;">邮箱</label>
+            <input id="profileEmail" style="box-sizing:border-box; width:100%; margin:4px 0 10px; padding:11px; border:1px solid #cbd5e1; border-radius:8px;">
+            <label style="display:none; font-size:12px; color:#64748b; font-weight:700;">手机号</label>
+            <input id="profilePhone" type="hidden">
+            <label style="font-size:12px; color:#64748b; font-weight:700;">验证码（改邮箱时填写）</label>
+            <input id="profileCode" style="box-sizing:border-box; width:100%; margin:4px 0 10px; padding:11px; border:1px solid #cbd5e1; border-radius:8px;">
+            <label style="font-size:12px; color:#64748b; font-weight:700;">新密码（可选）</label>
+            <input id="profilePassword" type="password" style="box-sizing:border-box; width:100%; margin:4px 0 10px; padding:11px; border:1px solid #cbd5e1; border-radius:8px;">
+            <input id="profileAvatarFile" type="file" accept="image/png,image/jpeg,image/webp" style="margin:4px 0 14px;">
+            <div style="display:flex; gap:8px;">
+                <button id="profileCodeBtn" onclick="requestProfileCode()" style="border:0; border-radius:8px; padding:11px; background:#0f766e; color:#fff; font-weight:800; cursor:pointer;">获取资料验证码</button>
+                <button onclick="saveAccountProfile()" style="flex:1; border:0; border-radius:8px; padding:11px; background:#2563eb; color:#fff; font-weight:800; cursor:pointer;">保存</button>
+            </div>
+            <div id="profileStatus" style="margin-top:12px; min-height:18px; color:#64748b; font-size:13px;"></div>
+        </div>
+    </div>
+    <div id="desktopClientModal" style="display:none; position:fixed; inset:0; z-index:21020; background:rgba(15,23,42,0.45); align-items:center; justify-content:center; padding:24px;" onclick="if(event.target===this)this.style.display='none'">
+        <div style="width:min(460px,94vw); background:#fff; border-radius:16px; padding:22px; box-shadow:0 24px 80px rgba(15,23,42,0.25);">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 14px;">
+                <h3 style="margin:0; color:#172033;">🖥️ 桌面客户端</h3>
+                <button onclick="document.getElementById('desktopClientModal').style.display='none'" style="border:0; border-radius:999px; padding:7px 12px; background:#e2e8f0; color:#172033; font-weight:800; cursor:pointer;">关闭</button>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr; gap:10px;">
+                <label style="font-size:12px; color:#64748b; font-weight:800;">桌面客户端</label>
+                <div style="padding:12px 14px; border:1px solid #dbeafe; border-radius:12px; background:#eff6ff; color:#1e3a8a; font-size:13px; line-height:1.6;">
+                    一个 Windows 安装包即可接入 Codex、Hermes、Claude Code。安装后在桌面端右下角“本机 Agent”里选择要启动的 Agent。
+                </div>
+                <select id="desktopClientAdapter" style="display:none; width:100%; padding:11px; border:1px solid #cbd5e1; border-radius:10px; outline:none;">
+                    <option value="codex_runner">Codex 桌面客户端</option>
+                    <option value="hermes_runner">Hermes 桌面客户端</option>
+                        <option value="claude_runner">桌面客户端 Claude Code</option>
+                </select>
+                <label style="font-size:12px; color:#64748b; font-weight:800;">默认工作区（可选）</label>
+                <input id="desktopClientWorkspace" placeholder="留空则使用用户目录下的 NiumaClawWorkspace" style="box-sizing:border-box; width:100%; padding:11px; border:1px solid #cbd5e1; border-radius:10px; outline:none;">
+                <div id="desktopClientStatus" style="min-height:20px; color:#64748b; font-size:13px;">下载 Windows 安装包，双击后会自动安装并启动客户端。</div>
+                <button id="desktopClientDownloadBtn" onclick="downloadDesktopClient()" style="border:0; border-radius:12px; padding:12px; background:#0e7490; color:#fff; font-weight:900; cursor:pointer;">下载 Windows 安装包</button>
+                <button onclick="refreshDesktopClientStatus()" style="border:0; border-radius:12px; padding:11px; background:#e0f2fe; color:#075985; font-weight:900; cursor:pointer;">查看在线客户端</button>
+            </div>
+        </div>
+    </div>
     <div class="header-container">
         <div class="header-left" style="justify-content: flex-start; padding-bottom: 5px;">
             <div style="display: flex; flex-direction: column; align-items: flex-start; cursor: pointer; margin-bottom: 12px; transition: transform 0.2s;" onclick="openLicenseModal()" title="点击修改公司名称并尝试申请执照" onmouseover="this.style.transform='translateX(5px)'" onmouseout="this.style.transform='none'">
@@ -1294,7 +1673,7 @@
             </div>
             <p>欢迎回来，这是您的团队。点击工位可以单独派单。</p>
             <div id="deskAlertSummaryBar" onclick="jumpToDeskAlerts()" style="display:none; margin: 6px 0 12px; padding:10px 12px; border-radius:10px; background:#fef2f2; color:#b91c1c; font-size:13px; font-weight:bold; border:1px solid #fecaca; cursor:pointer;">当前没有异常告警</div>
-            <div id="controlPlaneOverviewStrip" style="display:grid; grid-template-columns:repeat(var(--overview-columns, 3), minmax(118px, 156px)); gap:10px; margin: 0 0 14px;">
+            <div id="controlPlaneOverviewStrip" style="display:grid; grid-template-columns:repeat(var(--overview-columns, 3), minmax(104px, 1fr)); gap:8px; margin: 0 0 10px;">
                 <div style="padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.82); border:1px solid rgba(148,163,184,0.28);"><div style="font-size:11px; color:#64748b;">员工数</div><div style="font-size:18px; font-weight:800; color:#0f172a;">0</div></div>
                 <div style="padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.82); border:1px solid rgba(148,163,184,0.28);"><div style="font-size:11px; color:#64748b;">活跃任务</div><div style="font-size:18px; font-weight:800; color:#0f172a;">0</div></div>
                 <div style="padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.82); border:1px solid rgba(148,163,184,0.28);"><div style="font-size:11px; color:#64748b;">阻塞任务</div><div style="font-size:18px; font-weight:800; color:#0f172a;">0</div></div>
@@ -1309,6 +1688,7 @@
                     <button onclick="openCeoModal()" class="top-btn btn-deploy">🧠 部署战略项目</button>
                     <button onclick="openBoardModal()" class="top-btn btn-board">📊 项目看板</button>
                     <button onclick="runDemoWebsiteTask(this)" class="top-btn btn-demo">🧪 示例链路</button>
+                    <button onclick="openDesktopClientModal()" class="top-btn btn-client">🖥️ 下载客户端</button>
                     <button onclick="openRoutineModal()" class="top-btn btn-board">⏰ 周期任务 <span id="deskAlertBadge" style="display:none; margin-left:6px; padding:2px 8px; border-radius:999px; background:#dc2626; color:#fff; font-size:11px; font-weight:800;">0</span></button>
                     <button onclick="openSopModal()" class="top-btn btn-sop">📐 公司制度/SOP</button>
                 </div>
@@ -1320,10 +1700,35 @@
             </div>
         </div>
 
-        <div class="guide-right" style="background: rgba(255,255,255,0.85);">
+        <div class="guide-right">
             <div id="onboardingGuide" style="color: #333; font-size: 0.95rem; line-height: 1.5;">
                 <h3 style="margin-top:0; color:#2c3e50;">🏢 公司简介与工作指南</h3>
                 <p style="color:#666;">HR 还未配置公司简介。点击左侧「一键开设公司」生成团队与指南。</p>
+            </div>
+        </div>
+        <div class="header-side-panel">
+            <div class="header-account-shell" id="headerAccountShell">
+                <div class="header-side-identity" id="headerSideIdentity">
+                    <div id="headerSideAvatarSlot"></div>
+                    <div class="header-side-account-meta">
+                        <span class="header-side-account-name" id="headerSideAccountName">未登录</span>
+                        <span class="header-side-account-contact" id="headerSideAccountContact">请登录后查看接入状态</span>
+                    </div>
+                </div>
+                <div class="header-side-content" id="headerSideContent">
+                    <div class="header-side-title"><span>账号中心</span><span id="headerSideStatus">待同步</span></div>
+                    <div class="header-side-stats" id="headerSideStats">
+                        <div class="header-side-stat"><div class="header-side-stat-label">数据库</div><div class="header-side-stat-value">-</div><div class="header-side-stat-detail">待检测</div></div>
+                        <div class="header-side-stat"><div class="header-side-stat-label">员工</div><div class="header-side-stat-value">-</div><div class="header-side-stat-detail">待接入</div></div>
+                        <div class="header-side-stat"><div class="header-side-stat-label">模型</div><div class="header-side-stat-value">-</div><div class="header-side-stat-detail">待配置</div></div>
+                        <div class="header-side-stat"><div class="header-side-stat-label">节点</div><div class="header-side-stat-value">-</div><div class="header-side-stat-detail">待检测</div></div>
+                    </div>
+                    <div class="header-side-actions">
+                        <button class="header-side-action" onclick="location.href='/admin'">进入后台</button>
+                        <button class="header-side-action secondary" onclick="openAccountProfileModal()">账号资料</button>
+                        <button class="header-side-action neutral" onclick="logoutAccount()">退出登录</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1332,7 +1737,7 @@
 
     <div id="recruitModal"
         style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center; backdrop-filter:blur(3px);">
-        <div style="background:#fff; padding:25px; border-radius:15px; width:300px; display:flex; flex-direction:column; gap:12px; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+        <div style="background:#fff; padding:25px; border-radius:15px; width:min(380px,92vw); max-height:86vh; overflow:auto; display:flex; flex-direction:column; gap:12px; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
             <h3 style="margin:0 0 5px 0; text-align:center; color:#333;">🧑 招募新员工</h3>
             <input type="text" id="recruitName" placeholder="员工姓名"
                 style="padding:10px; border:1px solid #ddd; border-radius:8px; outline:none; font-weight:bold;">
@@ -1344,14 +1749,44 @@
                 style="padding:10px; border:1px solid #ddd; border-radius:8px; outline:none; font-size:12px;">
             <input type="text" id="recruitUrl" placeholder="节点 URL，例如 http://127.0.0.1:5050"
                 style="padding:10px; border:1px solid #ddd; border-radius:8px; outline:none; font-size:12px;" onblur="fetchNodeModels()">
-            <details style="margin-top: 4px; font-size: 13px; color: #666; cursor: pointer;">
-                <summary style="outline: none; font-weight: bold;">模型与节点配置</summary>
+            <details open style="margin-top: 4px; font-size: 13px; color: #666; cursor: pointer;">
+                <summary style="outline: none; font-weight: bold;">模型、节点与本机 Agent 接入</summary>
                 <div style="margin-top: 8px;">
                     <label style="display:block; margin-bottom: 4px; font-size:11px;">选择这个员工默认使用的模型</label>
                     <select id="recruitModelIndex" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:8px; outline:none;">
                         <option value="0">默认模型 (0)</option>
                     </select>
                     <div id="modelFetchStatus" style="font-size:11px; color:#999; margin-top:4px;">输入节点 URL 后会自动拉取可用模型。</div>
+                </div>
+                <div style="margin-top:12px; border-top:1px dashed #ddd; padding-top:10px;">
+                    <label style="display:block; margin-bottom:4px; font-size:11px;">接入方式</label>
+                    <select id="recruitAdapterType" onchange="toggleRunnerFields()" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:8px; outline:none;">
+                        <option value="localnode">标准 5050 节点</option>
+                        <option value="codex_runner">桌面客户端 Codex</option>
+                        <option value="hermes_runner">桌面客户端 Hermes</option>
+                        <option value="claude_runner">桌面客户端 Claude Code</option>
+                    </select>
+                    <div style="font-size:11px; color:#64748b; line-height:1.5; margin-top:6px;">
+                        使用桌面客户端时，先在顶部下载并启动客户端；确认入职时会自动绑定可用客户端。
+                    </div>
+                    <div id="runnerConnectBox" style="display:none; margin-top:8px;">
+                        <input id="recruitAgentNodeId" type="hidden">
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:center;">
+                            <button type="button" onclick="downloadDesktopClientForRecruit()" style="border:0; border-radius:8px; padding:9px 10px; background:#0e7490; color:white; font-weight:800; cursor:pointer;">下载安装包</button>
+                            <button type="button" onclick="refreshDesktopClientStatus()" style="border:0; border-radius:8px; padding:9px 10px; background:#e0f2fe; color:#075985; font-weight:800; cursor:pointer;">刷新状态</button>
+                        </div>
+                        <input id="recruitWorkspacePath" placeholder="本机工作区路径（可选）" style="box-sizing:border-box; width:100%; margin-top:8px; padding:8px; border:1px solid #ddd; border-radius:8px; outline:none; font-size:12px;">
+                        <div id="runnerConnectStatus" style="font-size:11px; color:#64748b; margin-top:6px;">选择桌面客户端后，会自动匹配在线客户端。</div>
+                        <details style="margin-top:8px;">
+                            <summary style="font-size:11px; font-weight:800; color:#64748b;">高级手动配置</summary>
+                            <textarea id="runnerCommandBox" readonly placeholder="需要手动排查时，这里会显示启动命令" style="box-sizing:border-box; width:100%; height:68px; margin-top:8px; padding:8px; border:1px dashed #cbd5e1; border-radius:8px; outline:none; resize:none; font-size:11px; font-family:Consolas,monospace; color:#334155;"></textarea>
+                            <div style="display:flex; gap:8px; margin-top:8px;">
+                                <button type="button" onclick="registerLocalAgentNode()" style="flex:1; border:0; border-radius:8px; padding:8px; background:#0f766e; color:#fff; font-weight:800; cursor:pointer;">生成命令</button>
+                                <a href="/agent_runner.py" download style="flex:1; text-align:center; text-decoration:none; border-radius:8px; padding:8px; background:#e0f2fe; color:#075985; font-weight:800;">下载脚本</a>
+                                <button type="button" onclick="copyRunnerCommand()" style="flex:1; border:0; border-radius:8px; padding:8px; background:#e2e8f0; color:#172033; font-weight:800; cursor:pointer;">复制命令</button>
+                            </div>
+                        </details>
+                    </div>
                 </div>
             </details>
 
@@ -1679,20 +2114,721 @@
         <div class="hr-loading-subtext">这可能需要一点时间来同步公司配置、岗位信息和节点状态。<br>请稍等，系统会自动完成后续步骤。</div>
     </div>
 
-    <div id="appDialogModal" class="app-dialog-overlay" onclick="if(event.target===this) closeModal('appDialogModal')">
+    <div id="appDialogModal" class="app-dialog-overlay" onclick="handleAppDialogOverlay(event)">
         <div class="app-dialog-card">
             <div class="app-dialog-head">
                 <div id="appDialogIcon" class="app-dialog-icon info">ℹ️</div>
                 <div style="flex:1;">
                     <h3 id="appDialogTitle" class="app-dialog-title">系统提示</h3>
                     <div id="appDialogMessage" class="app-dialog-message"></div>
+                    <input id="appDialogInput" class="app-dialog-input" style="display:none;" />
                 </div>
             </div>
             <div class="app-dialog-foot">
-                <button id="appDialogConfirm" class="app-dialog-btn primary" onclick="closeModal('appDialogModal')">我知道了</button>
+                <button id="appDialogCancel" class="app-dialog-btn neutral" style="display:none;">取消</button>
+                <button id="appDialogConfirm" class="app-dialog-btn primary">我知道了</button>
             </div>
         </div>
     </div>
+
+    <script>
+        window.currentAccount = null;
+        const nativeFetch = window.fetch.bind(window);
+        window.fetch = async (url, options = {}) => {
+            const res = await nativeFetch(url, options);
+            const path = typeof url === 'string' ? url : (url && url.url) || '';
+            if (res.status === 401 && path.startsWith('/api/') && !path.startsWith('/api/auth/')) {
+                showAuthGate();
+            }
+            return res;
+        };
+        function showAuthGate(message = '') {
+            const gate = document.getElementById('authGate');
+            if (gate) gate.style.display = 'flex';
+            if (message) {
+                const status = document.getElementById('authStatus');
+                if (status) status.textContent = message;
+            }
+        }
+        function hideAuthGate() {
+            const gate = document.getElementById('authGate');
+            if (gate) gate.style.display = 'none';
+        }
+        let authPanel = 'login';
+        let authLoginMode = 'code';
+        function authErrorText(error) {
+            const map = {
+                old_email_code_required: '请先获取并填写原邮箱验证码。',
+                old_phone_code_required: '请先获取并填写原手机号验证码。',
+                invalid_current_password: '原密码不正确，请重新输入。',
+                password_too_short: '新密码至少需要 6 位。',
+                contact_required: '请至少保留一个邮箱。',
+                account_contact_exists: '这个邮箱已经绑定了其他账号。',
+                invalid_code: '验证码不正确或已过期，请重新获取验证码。',
+                invalid_credentials: '账号、验证码或密码不正确。',
+                account_not_found: '账号不存在，请先注册。',
+                account_exists: '这个邮箱已经注册过。',
+                invalid_target: '请填写正确的邮箱。',
+                missing_identifier_or_password: '请填写账号和新密码。',
+                verification_too_frequent: '验证码请求太频繁，请稍后再试。',
+                verification_hourly_limited: '验证码请求次数过多，请一小时后再试。',
+                verification_daily_limited: '今天验证码请求次数已达上限，请明天再试。',
+                verification_send_failed: '验证码发送失败，请检查邮件/短信服务配置后重试。'
+            };
+            return map[error] || error || '操作失败，请稍后再试。';
+        }
+        function isEmailIdentifier(value) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((value || '').trim());
+        }
+        function authChannelFor(value) {
+            return 'email';
+        }
+        const codeButtonCooldowns = new Map();
+        function authCodeButtonFor(purpose = 'login') {
+            const id = purpose === 'register'
+                ? 'registerCodeBtn'
+                : purpose === 'reset'
+                    ? 'resetCodeBtn'
+                    : purpose === 'profile'
+                        ? 'profileCodeBtn'
+                        : 'loginCodeBtn';
+            return document.getElementById(id);
+        }
+        function rememberCodeButtonLabel(button) {
+            if (button && !button.dataset.defaultText) button.dataset.defaultText = button.textContent.trim() || '获取验证码';
+            return button?.dataset.defaultText || '获取验证码';
+        }
+        function setCodeButtonDisabled(button, disabled) {
+            if (!button) return;
+            button.disabled = disabled;
+            button.style.cursor = disabled ? 'not-allowed' : 'pointer';
+            button.style.opacity = disabled ? '0.72' : '1';
+        }
+        function startCodeButtonCooldown(key, button, seconds = 60) {
+            if (!button) return;
+            const label = rememberCodeButtonLabel(button);
+            const existing = codeButtonCooldowns.get(key);
+            if (existing) window.clearInterval(existing);
+            let remaining = seconds;
+            const render = () => {
+                if (remaining <= 0) {
+                    const timer = codeButtonCooldowns.get(key);
+                    if (timer) window.clearInterval(timer);
+                    codeButtonCooldowns.delete(key);
+                    button.textContent = label;
+                    setCodeButtonDisabled(button, false);
+                    return;
+                }
+                button.textContent = `${remaining}秒后重发`;
+                setCodeButtonDisabled(button, true);
+                remaining -= 1;
+            };
+            render();
+            codeButtonCooldowns.set(key, window.setInterval(render, 1000));
+        }
+        function isCodeButtonCooling(key) {
+            return codeButtonCooldowns.has(key);
+        }
+        function setCodeButtonBusy(button, busy) {
+            if (!button) return;
+            const label = rememberCodeButtonLabel(button);
+            button.textContent = busy ? '发送中...' : label;
+            setCodeButtonDisabled(button, busy);
+        }
+        function setLoginMode(mode) {
+            authLoginMode = mode === 'password' ? 'password' : 'code';
+            const codeRow = document.getElementById('loginCodeRow');
+            const passwordRow = document.getElementById('loginPasswordRow');
+            if (codeRow) codeRow.style.display = authLoginMode === 'code' ? 'block' : 'none';
+            if (passwordRow) passwordRow.style.display = authLoginMode === 'password' ? 'block' : 'none';
+            const codeTab = document.getElementById('codeLoginTab');
+            const passwordTab = document.getElementById('passwordLoginTab');
+            if (codeTab) {
+                codeTab.style.background = authLoginMode === 'code' ? '#2563eb' : 'transparent';
+                codeTab.style.color = authLoginMode === 'code' ? '#fff' : '#64748b';
+            }
+            if (passwordTab) {
+                passwordTab.style.background = authLoginMode === 'password' ? '#2563eb' : 'transparent';
+                passwordTab.style.color = authLoginMode === 'password' ? '#fff' : '#64748b';
+            }
+        }
+        function setAuthPanel(panel) {
+            authPanel = panel === 'register' || panel === 'reset' ? panel : 'login';
+            const title = document.getElementById('authTitle');
+            const eyebrow = document.getElementById('authEyebrow');
+            const status = document.getElementById('authStatus');
+            if (status) status.textContent = '';
+            document.getElementById('loginForm').style.display = authPanel === 'login' ? 'block' : 'none';
+            document.getElementById('registerForm').style.display = authPanel === 'register' ? 'block' : 'none';
+            document.getElementById('resetForm').style.display = authPanel === 'reset' ? 'block' : 'none';
+            if (title) title.textContent = authPanel === 'register' ? '注册账号' : authPanel === 'reset' ? '找回密码' : '账号登录';
+            if (eyebrow) eyebrow.textContent = authPanel === 'register' ? '创建账号' : authPanel === 'reset' ? '安全验证' : '账号登录';
+            if (authPanel === 'login') setLoginMode(authLoginMode);
+        }
+        function getAuthTarget(purpose = 'login') {
+            if (purpose === 'profile') {
+                return document.getElementById('profileEmail')?.value.trim() || '';
+            }
+            if (purpose === 'register') return document.getElementById('authRegisterIdentifier')?.value.trim() || '';
+            if (purpose === 'reset') return document.getElementById('authResetIdentifier')?.value.trim() || '';
+            return document.getElementById('authIdentifier')?.value.trim() || '';
+        }
+        async function requestAuthCode(purpose = 'login') {
+            const target = getAuthTarget(purpose);
+            const status = document.getElementById(purpose === 'profile' ? 'profileStatus' : 'authStatus');
+            const cooldownKey = `auth:${purpose}`;
+            const button = authCodeButtonFor(purpose);
+            if (isCodeButtonCooling(cooldownKey)) return;
+            if (!target) { if (status) status.textContent = '请先填写邮箱'; return; }
+            if (!isEmailIdentifier(target)) { if (status) status.textContent = '手机号验证码暂未开放，请使用邮箱。'; return; }
+            setCodeButtonBusy(button, true);
+            try {
+                const res = await nativeFetch('/api/auth/code/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ channel: authChannelFor(target), target, purpose })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (status) status.textContent = data.debugCode ? `验证码：${data.debugCode}` : (res.ok ? '验证码已发送' : authErrorText(data.error));
+                if (res.ok) {
+                    startCodeButtonCooldown(cooldownKey, button);
+                } else {
+                    setCodeButtonBusy(button, false);
+                }
+            } catch (error) {
+                if (status) status.textContent = error?.message || '验证码发送失败，请稍后再试。';
+                setCodeButtonBusy(button, false);
+            }
+        }
+        async function registerAccount() {
+            const identifier = getAuthTarget('register');
+            const status = document.getElementById('authStatus');
+            const payload = {
+                code: document.getElementById('authRegisterCode').value.trim(),
+                password: document.getElementById('authRegisterPassword').value,
+                displayName: document.getElementById('authDisplayName').value.trim()
+            };
+            if (!identifier || !payload.code) { status.textContent = '请填写邮箱和注册验证码。'; return; }
+            if (!isEmailIdentifier(identifier)) { status.textContent = '手机号注册暂未开放，请使用邮箱注册。'; return; }
+            payload.email = identifier;
+            const res = await nativeFetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const data = await res.json().catch(() => ({}));
+            status.textContent = res.ok ? '注册成功，正在进入...' : authErrorText(data.error);
+            if (res.ok) { window.currentAccount = data; applyAccountUi(data); hideAuthGate(); location.reload(); }
+        }
+        async function loginAccount() {
+            const status = document.getElementById('authStatus');
+            if (!document.getElementById('authAgreement').checked) { status.textContent = '请先勾选用户协议和隐私政策。'; return; }
+            const identifier = getAuthTarget('login');
+            const payload = { identifier };
+            if (!isEmailIdentifier(identifier)) { status.textContent = '手机号登录暂未开放，请使用邮箱。'; return; }
+            if (authLoginMode === 'password') {
+                payload.password = document.getElementById('authPassword').value;
+                if (!identifier || !payload.password) { status.textContent = '请填写账号和密码。'; return; }
+            } else {
+                payload.code = document.getElementById('authCode').value.trim();
+                if (!identifier || !payload.code) { status.textContent = '请填写账号和验证码。'; return; }
+            }
+            const res = await nativeFetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const data = await res.json().catch(() => ({}));
+            status.textContent = res.ok ? '登录成功，正在进入...' : authErrorText(data.error);
+            if (res.ok) { window.currentAccount = data; applyAccountUi(data); hideAuthGate(); location.reload(); }
+        }
+        async function resetPassword() {
+            const status = document.getElementById('authStatus');
+            const payload = {
+                identifier: getAuthTarget('reset'),
+                code: document.getElementById('authResetCode').value.trim(),
+                password: document.getElementById('authResetPassword').value
+            };
+            if (!payload.identifier || !payload.code || !payload.password) { status.textContent = '请填写邮箱、验证码和新密码。'; return; }
+            if (!isEmailIdentifier(payload.identifier)) { status.textContent = '手机号找回密码暂未开放，请使用邮箱。'; return; }
+            const res = await nativeFetch('/api/auth/password/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+                document.getElementById('authIdentifier').value = payload.identifier;
+                setAuthPanel('login');
+                setLoginMode('password');
+                status.textContent = '密码已重置，请用新密码登录。';
+            } else {
+                status.textContent = authErrorText(data.error);
+            }
+        }
+        async function logoutAccount() {
+            await nativeFetch('/api/auth/logout', { method: 'POST' });
+            location.reload();
+        }
+        const DEFAULT_ACCOUNT_AVATARS = [
+            '/avatar_default_01.png',
+            '/avatar_default_02.png',
+            '/avatar_default_03.png',
+            '/avatar_default_04.png'
+        ];
+        function getDefaultAccountAvatar(me = window.currentAccount) {
+            const seed = String(me?.accountId || me?.email || me?.phone || me?.displayName || 'guest');
+            let hash = 0;
+            for (let i = 0; i < seed.length; i++) hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
+            return DEFAULT_ACCOUNT_AVATARS[Math.abs(hash) % DEFAULT_ACCOUNT_AVATARS.length];
+        }
+        function setAccountAvatarImage(img, text, me) {
+            if (!img) return;
+            const fallback = getDefaultAccountAvatar(me);
+            img.onload = () => {
+                img.style.display = 'block';
+                if (text) text.style.display = 'none';
+            };
+            img.onerror = () => {
+                img.onerror = null;
+                img.src = fallback;
+            };
+            img.src = me?.avatarUrl ? `${me.avatarUrl}&t=${Date.now()}` : fallback;
+        }
+        function updateHeaderAccountMeta(me = window.currentAccount, config = window.teamConfig) {
+            const authed = !!me?.authenticated;
+            const display = authed ? (me.displayName || me.email || me.phone || '当前账号') : '未登录';
+            const contact = authed ? (me.email || me.phone || me.accountId || '已登录') : '请登录后查看接入状态';
+            const company = config?.CompanyName || '当前公司';
+            const nameEl = document.getElementById('headerSideAccountName');
+            const contactEl = document.getElementById('headerSideAccountContact');
+            if (nameEl) nameEl.textContent = display;
+            if (contactEl) contactEl.textContent = contact;
+        }
+        function applyAccountUi(me) {
+            const authed = !!me?.authenticated;
+            const bar = document.getElementById('accountBar');
+            if (bar) bar.style.display = 'flex';
+            const loginBtn = document.getElementById('accountLoginBtn');
+            if (loginBtn) loginBtn.style.display = authed ? 'none' : 'inline-block';
+            const adminBtn = document.getElementById('accountAdminBtn');
+            if (adminBtn) adminBtn.style.display = authed ? 'inline-block' : 'none';
+            const logoutBtn = document.getElementById('accountLogoutBtn');
+            if (logoutBtn) logoutBtn.style.display = authed ? 'inline-block' : 'none';
+            const text = document.getElementById('accountAvatarText');
+            if (text) text.textContent = (me?.displayName || me?.email || me?.phone || '我').slice(0, 1).toUpperCase();
+            const img = document.getElementById('accountAvatarImg');
+            setAccountAvatarImage(img, text, me);
+            updateHeaderAccountMeta(me);
+        }
+        async function checkAccountSession() {
+            try {
+                const res = await nativeFetch('/api/auth/me');
+                if (res.status === 404) {
+                    applyAccountUi({ authenticated: false });
+                    showAuthGate('账号系统接口还没启用，请刷新后再试。');
+                    return;
+                }
+                const me = await res.json();
+                window.currentAccount = me.authenticated ? me : null;
+                applyAccountUi(me);
+                if (!me.authenticated) {
+                    const msg = me.error === 'database_not_configured'
+                        ? '账号系统已显示，但后端还没有配置 NIUMACLAW_DATABASE_URL，配置 PostgreSQL 后即可注册/登录。'
+                        : '';
+                    showAuthGate(msg);
+                }
+            } catch {}
+        }
+        function openAccountProfileModal() {
+            if (!window.currentAccount?.authenticated) {
+                showAuthGate();
+                return;
+            }
+            const me = window.currentAccount || {};
+            document.getElementById('profileDisplayName').value = me.displayName || '';
+            document.getElementById('profileEmail').value = me.email || '';
+            document.getElementById('profilePhone').value = me.phone || '';
+            document.getElementById('profileStatus').textContent = '';
+            document.getElementById('accountProfileModal').style.display = 'flex';
+        }
+        async function requestProfileCode() {
+            await requestAuthCode('profile');
+        }
+        async function saveAccountProfile() {
+            const payload = {
+                displayName: document.getElementById('profileDisplayName').value.trim(),
+                email: document.getElementById('profileEmail').value.trim(),
+                phone: document.getElementById('profilePhone').value.trim(),
+                code: document.getElementById('profileCode').value.trim(),
+                password: document.getElementById('profilePassword').value
+            };
+            const res = await nativeFetch('/api/account/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const data = await res.json().catch(() => ({}));
+            const file = document.getElementById('profileAvatarFile').files[0];
+            if (res.ok && file) {
+                const base64 = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result).split(',')[1] || ''); r.onerror = reject; r.readAsDataURL(file); });
+                await nativeFetch('/api/account/avatar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contentType: file.type, base64Data: base64 }) });
+            }
+            document.getElementById('profileStatus').textContent = res.ok ? '已保存' : (data.error || '保存失败');
+            if (res.ok) { window.currentAccount = data; applyAccountUi(data); }
+        }
+        checkAccountSession();
+    </script>
+
+    <script>
+        (() => {
+            const originalAuthErrorText = window.authErrorText;
+            window.authErrorText = function authErrorText(error) {
+                const map = {
+                    old_email_code_required: '请先获取并填写原邮箱验证码。',
+                    old_phone_code_required: '请先获取并填写原手机号验证码。',
+                    invalid_current_password: '原密码不正确，请重新输入。',
+                    password_too_short: '新密码至少需要 6 位。',
+                    contact_required: '请至少保留一个邮箱。',
+                    account_contact_exists: '这个邮箱已经绑定了其他账号。',
+                    unsupported_avatar_type: '头像仅支持 PNG、JPEG 或 WebP。',
+                    avatar_too_large: '头像不能超过 1MB。',
+                    invalid_avatar_data: '头像文件读取失败，请重新选择。',
+                    verification_too_frequent: '验证码请求太频繁，请稍后再试。',
+                    verification_hourly_limited: '验证码请求次数过多，请一小时后再试。',
+                    verification_daily_limited: '今天验证码请求次数已达上限，请明天再试。',
+                    verification_send_failed: '验证码发送失败，请检查邮件/短信服务配置后重试。'
+                };
+                return map[error] || (originalAuthErrorText ? originalAuthErrorText(error) : (error || '操作失败，请稍后再试。'));
+            };
+
+            function profileEl(id) {
+                return document.getElementById(id);
+            }
+
+            function setAccountProfileStatus(message = '', tone = 'muted') {
+                const status = profileEl('profileStatus');
+                if (!status) return;
+                const colors = {
+                    success: '#047857',
+                    error: '#dc2626',
+                    muted: '#64748b',
+                    info: '#2563eb'
+                };
+                status.textContent = message;
+                status.style.color = colors[tone] || colors.muted;
+            }
+
+            function accountValue(value, fallback = '未绑定') {
+                return value && String(value).trim() ? String(value).trim() : fallback;
+            }
+
+            function renderAccountProfileModalShell() {
+                const modal = profileEl('accountProfileModal');
+                if (!modal || modal.dataset.profileVersion === 'secure-v2') return;
+                modal.dataset.profileVersion = 'secure-v2';
+                modal.style.padding = '18px';
+                modal.style.alignItems = 'center';
+                modal.style.justifyContent = 'center';
+                modal.innerHTML = `
+                    <div onclick="event.stopPropagation()" style="width:min(940px, calc(100vw - 28px)); max-height:calc(100vh - 28px); overflow:auto; border-radius:22px; background:#f8fafc; box-shadow:0 26px 80px rgba(15,23,42,0.28); border:1px solid rgba(148,163,184,0.35);">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:22px 24px; border-bottom:1px solid #e2e8f0; background:linear-gradient(180deg,#ffffff,#f8fafc); position:sticky; top:0; z-index:2;">
+                            <div style="display:flex; align-items:center; gap:14px;">
+                                <div style="width:54px; height:54px; border-radius:18px; background:#e0f2fe; border:1px solid #bae6fd; display:grid; place-items:center; overflow:hidden;">
+                                    <img id="profileAvatarPreview" alt="" style="width:100%; height:100%; object-fit:cover;">
+                                </div>
+                                <div>
+                                    <div style="font-size:22px; font-weight:900; color:#0f172a; line-height:1.2;">账号资料与安全</div>
+                                    <div id="profileHeaderContact" style="margin-top:6px; color:#64748b; font-size:13px;">管理头像、联系方式和登录密码</div>
+                                </div>
+                            </div>
+                            <button onclick="document.getElementById('accountProfileModal').style.display='none'" style="border:0; border-radius:999px; padding:10px 16px; background:#e2e8f0; color:#172033; font-weight:900; cursor:pointer;">关闭</button>
+                        </div>
+
+                        <div style="padding:22px 24px 24px; display:grid; grid-template-columns:minmax(220px, 280px) minmax(0,1fr); gap:18px;">
+                            <section style="background:#fff; border:1px solid #e2e8f0; border-radius:18px; padding:18px; align-self:start;">
+                                <div style="font-weight:900; color:#0f172a; font-size:16px;">个人资料</div>
+                                <p style="margin:6px 0 16px; color:#64748b; font-size:13px; line-height:1.6;">用于前台头像、右上角账号中心和后台识别。</p>
+                                <div style="display:flex; align-items:center; gap:14px; margin-bottom:14px;">
+                                    <div style="width:76px; height:76px; border-radius:22px; background:#e0f2fe; border:1px solid #bae6fd; overflow:hidden; flex:0 0 auto;">
+                                        <img id="profileAvatarPreviewLarge" alt="" style="width:100%; height:100%; object-fit:cover;">
+                                    </div>
+                                    <div style="min-width:0;">
+                                        <input id="profileAvatarFile" type="file" accept="image/png,image/jpeg,image/webp" onchange="previewAccountAvatar(this)" style="display:none;">
+                                        <button onclick="document.getElementById('profileAvatarFile').click()" style="border:1px solid #cbd5e1; background:#fff; color:#0f172a; border-radius:10px; padding:9px 12px; font-weight:900; cursor:pointer;">更换头像</button>
+                                        <div id="profileAvatarFileName" style="margin-top:7px; color:#64748b; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:165px;">PNG / JPEG / WebP，最大 1MB</div>
+                                    </div>
+                                </div>
+                                <label style="display:block; font-weight:800; color:#475569; font-size:13px; margin-bottom:7px;">昵称</label>
+                                <input id="profileDisplayName" style="width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:11px; padding:11px 12px; font-size:14px; outline:none; background:#fff;">
+                                <button onclick="saveAccountIdentity()" style="width:100%; margin-top:14px; border:0; border-radius:11px; padding:12px; background:#2563eb; color:#fff; font-weight:900; cursor:pointer;">保存资料</button>
+                            </section>
+
+                            <div style="display:grid; gap:14px;">
+                                <section style="background:#fff; border:1px solid #e2e8f0; border-radius:18px; padding:18px;">
+                                    <div style="display:flex; justify-content:space-between; gap:14px; align-items:flex-start; margin-bottom:12px;">
+                                        <div>
+                                            <div style="font-size:16px; font-weight:900; color:#0f172a;">更换邮箱</div>
+                                            <div style="margin-top:4px; color:#64748b; font-size:13px;">更换时需要验证原邮箱，避免账号被误改。</div>
+                                        </div>
+                                        <span id="profileCurrentEmail" style="color:#475569; font-size:12px; background:#f1f5f9; border-radius:999px; padding:6px 9px; white-space:nowrap;">未绑定</span>
+                                    </div>
+                                    <div style="display:grid; grid-template-columns:minmax(0,1fr) 170px; gap:10px;">
+                                        <input id="profileEmail" placeholder="新邮箱地址" autocomplete="email" style="min-width:0; border:1px solid #cbd5e1; border-radius:11px; padding:11px 12px; font-size:14px; outline:none;">
+                                        <button id="profileEmailCodeBtn" onclick="requestAccountProfileCode('email')" style="border:0; border-radius:11px; padding:11px 12px; background:#0f766e; color:#fff; font-weight:900; cursor:pointer;">原邮箱验证码</button>
+                                    </div>
+                                    <input id="profileOldEmailCode" placeholder="输入原邮箱验证码" style="width:100%; box-sizing:border-box; margin-top:10px; border:1px solid #cbd5e1; border-radius:11px; padding:11px 12px; font-size:14px; outline:none;">
+                                    <button onclick="saveAccountEmail()" style="margin-top:12px; border:0; border-radius:11px; padding:11px 16px; background:#2563eb; color:#fff; font-weight:900; cursor:pointer;">保存邮箱</button>
+                                </section>
+
+                                <section style="display:none; background:#fff; border:1px solid #e2e8f0; border-radius:18px; padding:18px;">
+                                    <div style="display:flex; justify-content:space-between; gap:14px; align-items:flex-start; margin-bottom:12px;">
+                                        <div>
+                                            <div style="font-size:16px; font-weight:900; color:#0f172a;">更换手机号</div>
+                                            <div style="margin-top:4px; color:#64748b; font-size:13px;">更换时需要验证原手机号；首次绑定可直接保存。</div>
+                                        </div>
+                                        <span id="profileCurrentPhone" style="color:#475569; font-size:12px; background:#f1f5f9; border-radius:999px; padding:6px 9px; white-space:nowrap;">未绑定</span>
+                                    </div>
+                                    <div style="display:grid; grid-template-columns:minmax(0,1fr) 170px; gap:10px;">
+                                        <input id="profilePhone" placeholder="新手机号" autocomplete="tel" style="min-width:0; border:1px solid #cbd5e1; border-radius:11px; padding:11px 12px; font-size:14px; outline:none;">
+                                        <button id="profilePhoneCodeBtn" onclick="requestAccountProfileCode('phone')" style="border:0; border-radius:11px; padding:11px 12px; background:#0f766e; color:#fff; font-weight:900; cursor:pointer;">原手机验证码</button>
+                                    </div>
+                                    <input id="profileOldPhoneCode" placeholder="输入原手机号验证码" style="width:100%; box-sizing:border-box; margin-top:10px; border:1px solid #cbd5e1; border-radius:11px; padding:11px 12px; font-size:14px; outline:none;">
+                                    <button onclick="saveAccountPhone()" style="margin-top:12px; border:0; border-radius:11px; padding:11px 16px; background:#2563eb; color:#fff; font-weight:900; cursor:pointer;">保存手机号</button>
+                                </section>
+
+                                <section style="background:#fff; border:1px solid #e2e8f0; border-radius:18px; padding:18px;">
+                                    <div style="font-size:16px; font-weight:900; color:#0f172a;">修改密码</div>
+                                    <div style="margin-top:4px; color:#64748b; font-size:13px;">需要输入原密码，新密码至少 6 位。</div>
+                                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:12px;">
+                                        <input id="profileCurrentPassword" type="password" placeholder="原密码" autocomplete="current-password" style="min-width:0; border:1px solid #cbd5e1; border-radius:11px; padding:11px 12px; font-size:14px; outline:none;">
+                                        <input id="profilePassword" type="password" placeholder="新密码" autocomplete="new-password" style="min-width:0; border:1px solid #cbd5e1; border-radius:11px; padding:11px 12px; font-size:14px; outline:none;">
+                                        <input id="profilePasswordConfirm" type="password" placeholder="确认新密码" autocomplete="new-password" style="min-width:0; border:1px solid #cbd5e1; border-radius:11px; padding:11px 12px; font-size:14px; outline:none;">
+                                    </div>
+                                    <button onclick="saveAccountPassword()" style="margin-top:12px; border:0; border-radius:11px; padding:11px 16px; background:#172033; color:#fff; font-weight:900; cursor:pointer;">更新密码</button>
+                                </section>
+                            </div>
+                        </div>
+
+                        <div style="padding:0 24px 22px;">
+                            <div id="profileStatus" style="min-height:22px; color:#64748b; font-weight:800;"></div>
+                        </div>
+                    </div>`;
+
+                if (!document.getElementById('accountProfileProductStyle')) {
+                    const style = document.createElement('style');
+                    style.id = 'accountProfileProductStyle';
+                    style.textContent = `
+                        #accountProfileModal input:focus { border-color:#2563eb !important; box-shadow:0 0 0 3px rgba(37,99,235,0.12); }
+                        #accountProfileModal button:hover { filter:brightness(0.98); transform:translateY(-1px); }
+                        @media (max-width: 760px) {
+                            #accountProfileModal > div > div:nth-child(2) { grid-template-columns:1fr !important; }
+                            #accountProfileModal section div[style*="grid-template-columns:1fr 1fr 1fr"] { grid-template-columns:1fr !important; }
+                            #accountProfileModal section div[style*="grid-template-columns:minmax(0,1fr) 170px"] { grid-template-columns:1fr !important; }
+                        }`;
+                    document.head.appendChild(style);
+                }
+            }
+
+            function syncAccountProfileFields() {
+                const me = window.currentAccount || {};
+                const displayInput = profileEl('profileDisplayName');
+                const emailInput = profileEl('profileEmail');
+                const phoneInput = profileEl('profilePhone');
+                if (displayInput) displayInput.value = me.displayName || '';
+                if (emailInput) emailInput.value = me.email || '';
+                if (phoneInput) phoneInput.value = me.phone || '';
+                const headerContact = profileEl('profileHeaderContact');
+                if (headerContact) headerContact.textContent = `${accountValue(me.displayName || me.email || me.phone, '当前账号')} · ${accountValue(me.email || me.phone)}`;
+                const currentEmail = profileEl('profileCurrentEmail');
+                const currentPhone = profileEl('profileCurrentPhone');
+                if (currentEmail) currentEmail.textContent = `当前：${accountValue(me.email)}`;
+                if (currentPhone) currentPhone.textContent = `当前：${accountValue(me.phone)}`;
+                const emailCodeBtn = profileEl('profileEmailCodeBtn');
+                const phoneCodeBtn = profileEl('profilePhoneCodeBtn');
+                if (emailCodeBtn) {
+                    emailCodeBtn.disabled = !me.email;
+                    emailCodeBtn.style.opacity = me.email ? '1' : '0.55';
+                    emailCodeBtn.textContent = me.email ? '原邮箱验证码' : '首次绑定无需验证码';
+                }
+                if (phoneCodeBtn) {
+                    phoneCodeBtn.disabled = !me.phone;
+                    phoneCodeBtn.style.opacity = me.phone ? '1' : '0.55';
+                    phoneCodeBtn.textContent = me.phone ? '原手机验证码' : '首次绑定无需验证码';
+                }
+                const preview = profileEl('profileAvatarPreview');
+                const previewLarge = profileEl('profileAvatarPreviewLarge');
+                const headerAvatar = profileEl('accountAvatarImg');
+                const headerAvatarSrc = headerAvatar?.getAttribute('src') || '';
+                if (headerAvatarSrc && headerAvatar.complete && headerAvatar.naturalWidth > 0) {
+                    if (preview) preview.src = headerAvatarSrc;
+                    if (previewLarge) previewLarge.src = headerAvatarSrc;
+                } else if (typeof setAccountAvatarImage === 'function') {
+                    setAccountAvatarImage(preview, null, me);
+                    setAccountAvatarImage(previewLarge, null, me);
+                }
+            }
+
+            function readAvatarAsBase64(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            async function patchAccountProfile(payload, successText) {
+                const res = await nativeFetch('/api/account/profile', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(window.authErrorText(data.error));
+                window.currentAccount = data;
+                applyAccountUi(data);
+                syncAccountProfileFields();
+                setAccountProfileStatus(successText, 'success');
+                return data;
+            }
+
+            window.previewAccountAvatar = function previewAccountAvatar(input) {
+                const file = input?.files?.[0];
+                const label = profileEl('profileAvatarFileName');
+                if (!file) {
+                    if (label) label.textContent = 'PNG / JPEG / WebP，最大 1MB';
+                    return;
+                }
+                if (label) label.textContent = file.name;
+                const url = URL.createObjectURL(file);
+                for (const id of ['profileAvatarPreview', 'profileAvatarPreviewLarge']) {
+                    const img = profileEl(id);
+                    if (img) img.src = url;
+                }
+                setAccountProfileStatus('头像已选择，点击“保存资料”后生效。', 'info');
+            };
+
+            window.openAccountProfileModal = function openAccountProfileModal() {
+                if (!window.currentAccount?.authenticated) {
+                    showAuthGate();
+                    return;
+                }
+                renderAccountProfileModalShell();
+                syncAccountProfileFields();
+                setAccountProfileStatus('');
+                const modal = profileEl('accountProfileModal');
+                if (modal) modal.style.display = 'flex';
+            };
+
+            window.requestAccountProfileCode = async function requestAccountProfileCode(kind) {
+                const me = window.currentAccount || {};
+                const isPhone = kind === 'phone';
+                const target = isPhone ? me.phone : me.email;
+                const button = profileEl(isPhone ? 'profilePhoneCodeBtn' : 'profileEmailCodeBtn');
+                const cooldownKey = `profile:${isPhone ? 'phone' : 'email'}`;
+                if (isCodeButtonCooling(cooldownKey)) return;
+                if (!target) {
+                    setAccountProfileStatus(isPhone ? '当前账号还没有原手机号，首次绑定手机号不需要验证码。' : '当前账号还没有原邮箱，首次绑定邮箱不需要验证码。', 'info');
+                    return;
+                }
+                setCodeButtonBusy(button, true);
+                try {
+                    const res = await nativeFetch('/api/auth/code/request', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            channel: isPhone ? 'phone' : 'email',
+                            target,
+                            purpose: isPhone ? 'profile_phone_old' : 'profile_email_old'
+                        })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(window.authErrorText(data.error));
+                    setAccountProfileStatus(data.debugCode ? `验证码：${data.debugCode}` : '验证码已发送，请查收后填写。', 'success');
+                    startCodeButtonCooldown(cooldownKey, button);
+                } catch (error) {
+                    setAccountProfileStatus(error.message || '验证码发送失败。', 'error');
+                    setCodeButtonBusy(button, false);
+                }
+            };
+
+            window.saveAccountIdentity = async function saveAccountIdentity() {
+                const displayName = profileEl('profileDisplayName')?.value.trim() || '';
+                const file = profileEl('profileAvatarFile')?.files?.[0];
+                try {
+                    let account = window.currentAccount;
+                    if (displayName && displayName !== (account?.displayName || '')) {
+                        account = await patchAccountProfile({ displayName }, '昵称已保存。');
+                    }
+                    if (file) {
+                        if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) throw new Error('头像仅支持 PNG、JPEG 或 WebP。');
+                        if (file.size > 1024 * 1024) throw new Error('头像不能超过 1MB。');
+                        const base64Data = await readAvatarAsBase64(file);
+                        const res = await nativeFetch('/api/account/avatar', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ contentType: file.type, base64Data })
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(window.authErrorText(data.error));
+                        window.currentAccount = { ...account, avatarUrl: `/api/account/avatar?accountId=${account.accountId}&refresh=${Date.now()}` };
+                        applyAccountUi(window.currentAccount);
+                        syncAccountProfileFields();
+                    }
+                    setAccountProfileStatus(file ? '头像和资料已保存。' : '资料已保存。', 'success');
+                } catch (error) {
+                    setAccountProfileStatus(error.message || '资料保存失败。', 'error');
+                }
+            };
+
+            window.saveAccountEmail = async function saveAccountEmail() {
+                const nextEmail = profileEl('profileEmail')?.value.trim() || '';
+                const oldEmailCode = profileEl('profileOldEmailCode')?.value.trim() || '';
+                const currentEmail = window.currentAccount?.email || '';
+                if (!nextEmail) { setAccountProfileStatus('请填写新的邮箱地址。', 'error'); return; }
+                if (currentEmail && nextEmail.toLowerCase() !== currentEmail.toLowerCase() && !oldEmailCode) {
+                    setAccountProfileStatus('更换邮箱前，请先获取并填写原邮箱验证码。', 'error');
+                    return;
+                }
+                try {
+                    await patchAccountProfile({ email: nextEmail, oldEmailCode }, '邮箱已更新。');
+                    const code = profileEl('profileOldEmailCode');
+                    if (code) code.value = '';
+                } catch (error) {
+                    setAccountProfileStatus(error.message || '邮箱保存失败。', 'error');
+                }
+            };
+
+            window.saveAccountPhone = async function saveAccountPhone() {
+                const nextPhone = profileEl('profilePhone')?.value.trim() || '';
+                const oldPhoneCode = profileEl('profileOldPhoneCode')?.value.trim() || '';
+                const currentPhone = window.currentAccount?.phone || '';
+                if (!nextPhone) { setAccountProfileStatus('请填写新的手机号。', 'error'); return; }
+                if (currentPhone && nextPhone !== currentPhone && !oldPhoneCode) {
+                    setAccountProfileStatus('更换手机号前，请先获取并填写原手机号验证码。', 'error');
+                    return;
+                }
+                try {
+                    await patchAccountProfile({ phone: nextPhone, oldPhoneCode }, '手机号已更新。');
+                    const code = profileEl('profileOldPhoneCode');
+                    if (code) code.value = '';
+                } catch (error) {
+                    setAccountProfileStatus(error.message || '手机号保存失败。', 'error');
+                }
+            };
+
+            window.saveAccountPassword = async function saveAccountPassword() {
+                const currentPassword = profileEl('profileCurrentPassword')?.value || '';
+                const password = profileEl('profilePassword')?.value || '';
+                const confirm = profileEl('profilePasswordConfirm')?.value || '';
+                if (!currentPassword) { setAccountProfileStatus('请填写原密码。', 'error'); return; }
+                if (password.length < 6) { setAccountProfileStatus('新密码至少需要 6 位。', 'error'); return; }
+                if (password !== confirm) { setAccountProfileStatus('两次输入的新密码不一致。', 'error'); return; }
+                try {
+                    await patchAccountProfile({ currentPassword, password }, '密码已更新，请妥善保存。');
+                    for (const id of ['profileCurrentPassword', 'profilePassword', 'profilePasswordConfirm']) {
+                        const input = profileEl(id);
+                        if (input) input.value = '';
+                    }
+                } catch (error) {
+                    setAccountProfileStatus(error.message || '密码更新失败。', 'error');
+                }
+            };
+
+            window.requestProfileCode = async function requestProfileCode() {
+                await window.requestAccountProfileCode('email');
+            };
+
+            window.saveAccountProfile = async function saveAccountProfile() {
+                await window.saveAccountIdentity();
+            };
+        })();
+    </script>
 
     <script>
         let currentTargetDesk = null;
@@ -1721,35 +2857,134 @@
             }
         }
 
+        let appDialogResolver = null;
+        let appDialogKeyHandler = null;
+
+        function resolveAppDialog(result) {
+            const resolver = appDialogResolver;
+            appDialogResolver = null;
+            if (appDialogKeyHandler) {
+                document.removeEventListener('keydown', appDialogKeyHandler);
+                appDialogKeyHandler = null;
+            }
+            closeModal('appDialogModal');
+            if (resolver) resolver(result);
+        }
+
+        function handleAppDialogOverlay(event) {
+            if (!event || event.target !== event.currentTarget) return;
+            const modal = document.getElementById('appDialogModal');
+            if (modal?.dataset.dismissible === 'false') return;
+            resolveAppDialog(modal?.dataset.promptMode === 'true' ? null : false);
+        }
+
         function showAppDialog(options) {
             const modal = document.getElementById('appDialogModal');
             const title = document.getElementById('appDialogTitle');
             const message = document.getElementById('appDialogMessage');
             const icon = document.getElementById('appDialogIcon');
+            const input = document.getElementById('appDialogInput');
+            const cancelBtn = document.getElementById('appDialogCancel');
             const confirmBtn = document.getElementById('appDialogConfirm');
-            if (!modal || !title || !message || !icon || !confirmBtn) {
-                alert(typeof options === 'string' ? options : (options?.message || '系统提示'));
-                return;
-            }
-
             const config = typeof options === 'string' ? { message: options } : (options || {});
-            const tone = String(config.tone || 'info').toLowerCase();
-            const toneMap = {
-                info: { icon: 'ℹ️', button: 'primary' },
-                success: { icon: '✅', button: 'primary' },
-                warning: { icon: '⚠️', button: 'warning' },
-                error: { icon: '❌', button: 'error' }
-            };
-            const currentTone = toneMap[tone] || toneMap.info;
 
-            title.textContent = config.title || '系统提示';
-            message.textContent = config.message || '';
-            icon.className = `app-dialog-icon ${tone}`;
-            icon.textContent = config.icon || currentTone.icon;
-            confirmBtn.className = `app-dialog-btn ${config.buttonTone || currentTone.button}`;
-            confirmBtn.textContent = config.confirmText || '我知道了';
-            modal.style.display = 'flex';
+            return new Promise(resolve => {
+                if (!modal || !title || !message || !icon || !input || !cancelBtn || !confirmBtn) {
+                    console.warn('App dialog is not mounted:', config.message || config.title || 'system dialog');
+                    resolve(false);
+                    return;
+                }
+
+                if (appDialogResolver) {
+                    resolveAppDialog(false);
+                }
+
+                const tone = String(config.tone || 'info').toLowerCase();
+                const toneMap = {
+                    info: { icon: 'ℹ️', button: 'primary' },
+                    success: { icon: '✅', button: 'primary' },
+                    warning: { icon: '⚠️', button: 'warning' },
+                    error: { icon: '❌', button: 'error' }
+                };
+                const currentTone = toneMap[tone] || toneMap.info;
+                const isPrompt = config.mode === 'prompt' || config.prompt === true;
+                const showCancel = Boolean(config.showCancel || isPrompt);
+
+                title.textContent = config.title || '系统提示';
+                message.textContent = config.message || '';
+                icon.className = `app-dialog-icon ${tone}`;
+                icon.textContent = config.icon || currentTone.icon;
+                input.style.display = isPrompt ? 'block' : 'none';
+                input.value = isPrompt ? String(config.defaultValue ?? '') : '';
+                input.placeholder = isPrompt ? String(config.placeholder || '') : '';
+                cancelBtn.style.display = showCancel ? 'inline-flex' : 'none';
+                cancelBtn.textContent = config.cancelText || '取消';
+                confirmBtn.className = `app-dialog-btn ${config.buttonTone || currentTone.button}`;
+                confirmBtn.textContent = config.confirmText || (isPrompt ? '确定' : '我知道了');
+                modal.dataset.promptMode = isPrompt ? 'true' : 'false';
+                modal.dataset.dismissible = config.dismissible === false ? 'false' : 'true';
+
+                appDialogResolver = resolve;
+                cancelBtn.onclick = () => resolveAppDialog(isPrompt ? null : false);
+                confirmBtn.onclick = () => resolveAppDialog(isPrompt ? input.value : true);
+                appDialogKeyHandler = event => {
+                    if (event.key === 'Escape' && modal.dataset.dismissible !== 'false') {
+                        event.preventDefault();
+                        resolveAppDialog(isPrompt ? null : false);
+                    }
+                    if (event.key === 'Enter' && isPrompt && document.activeElement === input) {
+                        event.preventDefault();
+                        resolveAppDialog(input.value);
+                    }
+                };
+                document.addEventListener('keydown', appDialogKeyHandler);
+                modal.style.zIndex = '60000';
+                modal.style.display = 'flex';
+                if (isPrompt) {
+                    window.setTimeout(() => {
+                        input.focus();
+                        input.select();
+                    }, 30);
+                } else {
+                    window.setTimeout(() => confirmBtn.focus(), 30);
+                }
+            });
         }
+
+        function showAppConfirm(options) {
+            const config = typeof options === 'string' ? { message: options } : (options || {});
+            return showAppDialog({
+                title: config.title || '请确认',
+                message: config.message || '',
+                tone: config.tone || 'warning',
+                confirmText: config.confirmText || '确定',
+                cancelText: config.cancelText || '取消',
+                buttonTone: config.buttonTone || config.tone || 'warning',
+                showCancel: true,
+                dismissible: config.dismissible
+            }).then(Boolean);
+        }
+
+        function showAppPrompt(options, defaultValue = '') {
+            const config = typeof options === 'string' ? { message: options, defaultValue } : (options || {});
+            return showAppDialog({
+                title: config.title || '请输入',
+                message: config.message || '',
+                tone: config.tone || 'info',
+                confirmText: config.confirmText || '确定',
+                cancelText: config.cancelText || '取消',
+                buttonTone: config.buttonTone || 'primary',
+                mode: 'prompt',
+                showCancel: true,
+                defaultValue: config.defaultValue ?? defaultValue,
+                placeholder: config.placeholder || '',
+                dismissible: config.dismissible
+            }).then(value => (typeof value === 'string' ? value : null));
+        }
+
+        window.alert = function(message) {
+            showAppDialog({ tone: 'info', title: '系统提示', message: String(message ?? '') });
+        };
 
         const DEFAULT_AGENT_BASE = 'http://127.0.0.1:5050';
 
@@ -1775,6 +3010,56 @@
 
         function getPendingApproval(run) {
             return run?.pendingApproval || run?.PendingApproval || null;
+        }
+
+        function getPendingApprovalId(run) {
+            const pending = getPendingApproval(run);
+            return String(pending?.approvalId || pending?.ApprovalId || '').trim();
+        }
+
+        function getBoardTaskLinkedRunId(task) {
+            const result = String(task?.result || task?.Result || '');
+            const marker = result.match(/agent-run:([a-z0-9_-]+)/i) || result.match(/Run ID[:：]\s*`?([^\s`]+)/i);
+            return marker ? String(marker[1] || '').trim() : '';
+        }
+
+        function runMatchesBoardTask(run, taskId, taskTitle, linkedRunId) {
+            const normalizedTaskId = String(taskId || '').trim();
+            const normalizedTitle = String(taskTitle || '').trim();
+            const normalizedLinkedRunId = String(linkedRunId || '').trim();
+            const runTaskId = String(run?.taskId || run?.TaskId || run?.boardTaskId || run?.BoardTaskId || '').trim();
+            const runId = getRunIdFromObject(run);
+            const runText = String(run?.taskText || run?.TaskText || '').trim();
+            if (normalizedTaskId && runTaskId && runTaskId === normalizedTaskId) return true;
+            if (normalizedLinkedRunId && runId && runId === normalizedLinkedRunId) return true;
+            return !!(normalizedTitle && runText.includes(normalizedTitle));
+        }
+
+        function findBoardTaskById(taskId) {
+            const normalizedTaskId = String(taskId || '').trim();
+            if (!normalizedTaskId) return null;
+            const projects = Array.isArray(window.latestBoardProjects) ? window.latestBoardProjects : [];
+            for (const project of projects) {
+                const tasks = Array.isArray(project?.tasks || project?.Tasks) ? (project.tasks || project.Tasks) : [];
+                const task = tasks.find(item => String(item?.id || item?.Id || '').trim() === normalizedTaskId);
+                if (task) return task;
+            }
+            return null;
+        }
+
+        async function findPendingApprovalRunForTask(task, employeeName) {
+            if (!employeeName) return null;
+            const runs = await fetchAgentJsonSafe('/api/agent/runs?user=' + encodeURIComponent(employeeName)).catch(() => []);
+            window.agentRunCacheByEmployee = window.agentRunCacheByEmployee || {};
+            window.agentRunCacheByEmployee[employeeName] = Array.isArray(runs) ? runs : [];
+            const taskId = String(task?.id || task?.Id || '').trim();
+            const taskTitle = String(task?.title || task?.Title || '').trim();
+            const linkedRunId = getBoardTaskLinkedRunId(task);
+            const list = Array.isArray(runs) ? runs : [];
+            const matched = list.find(run => getPendingApprovalId(run) && runMatchesBoardTask(run, taskId, taskTitle, linkedRunId));
+            if (matched) return matched;
+            if (!taskId && !taskTitle && !linkedRunId) return list.find(run => getPendingApprovalId(run)) || null;
+            return null;
         }
 
         function getStatusClass(status) {
@@ -1933,17 +3218,106 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ runId, approvalId })
             });
-            alert('已批准，智能体会继续执行。');
+            showAppDialog({ tone: 'success', title: '已批准操作', message: '智能体会继续执行。' });
         }
 
         async function rejectAgentRun(empName, runId, approvalId) {
-            const reason = prompt('请输入拒绝原因：', '不允许执行该高风险系统操作。') || 'Rejected by operator.';
+            const reason = await showAppPrompt({
+                title: '拒绝操作',
+                message: '请输入拒绝原因：',
+                defaultValue: '不允许执行该高风险系统操作。',
+                confirmText: '拒绝操作',
+                buttonTone: 'error'
+            }) || 'Rejected by operator.';
             await fetchAgentJsonSafe('/api/agent/reject?user=' + encodeURIComponent(empName), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ runId, approvalId, reason })
             });
-            alert('已拒绝该操作。');
+            showAppDialog({ tone: 'success', title: '已拒绝操作', message: '该操作已被拦截。' });
+        }
+
+        async function approveBoardTaskAgentApproval(taskId, employeeName, trigger) {
+            const button = trigger && trigger.tagName ? trigger : null;
+            const task = findBoardTaskById(taskId);
+            if (!task || !employeeName) {
+                showAppDialog({ tone: 'warning', title: '没有定位到审批', message: '请先刷新项目看板后再试。' });
+                return;
+            }
+            const confirmed = await showAppConfirm({
+                title: '批准继续执行',
+                message: '将允许该员工节点继续执行当前等待审批的系统操作。',
+                confirmText: '批准继续',
+                buttonTone: 'warning'
+            });
+            if (!confirmed) return;
+            const originalText = button ? button.textContent : '';
+            try {
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = '批准中...';
+                }
+                const run = await findPendingApprovalRunForTask(task, employeeName);
+                const runId = getRunIdFromObject(run);
+                const approvalId = getPendingApprovalId(run);
+                if (!runId || !approvalId) throw new Error('没有找到该任务的待审批运行。');
+                await fetchAgentJsonSafe('/api/agent/approve?user=' + encodeURIComponent(employeeName), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ runId, approvalId })
+                });
+                showAppDialog({ tone: 'success', title: '已批准继续', message: '员工节点已收到批准，会继续执行当前任务。' });
+                await refreshGovernanceSurfacesAfterTaskAction(employeeName);
+            } catch (err) {
+                showAppDialog({ tone: 'error', title: '批准失败', message: err?.message || String(err) });
+            } finally {
+                if (button && button.isConnected) {
+                    button.disabled = false;
+                    button.textContent = originalText || '批准继续';
+                }
+            }
+        }
+
+        async function rejectBoardTaskAgentApproval(taskId, employeeName, trigger) {
+            const button = trigger && trigger.tagName ? trigger : null;
+            const task = findBoardTaskById(taskId);
+            if (!task || !employeeName) {
+                showAppDialog({ tone: 'warning', title: '没有定位到审批', message: '请先刷新项目看板后再试。' });
+                return;
+            }
+            const reason = await showAppPrompt({
+                title: '拒绝执行',
+                message: '请输入拒绝原因：',
+                defaultValue: '不允许执行该系统操作，请改用更安全的交付方式。',
+                confirmText: '拒绝执行',
+                buttonTone: 'error'
+            }) || '';
+            if (!reason.trim()) return;
+            const originalText = button ? button.textContent : '';
+            try {
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = '拒绝中...';
+                }
+                const run = await findPendingApprovalRunForTask(task, employeeName);
+                const runId = getRunIdFromObject(run);
+                const approvalId = getPendingApprovalId(run);
+                if (!runId || !approvalId) throw new Error('没有找到该任务的待审批运行。');
+                await fetchAgentJsonSafe('/api/agent/reject?user=' + encodeURIComponent(employeeName), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ runId, approvalId, reason: reason.trim() })
+                });
+                showAppDialog({ tone: 'success', title: '已拒绝执行', message: '该系统操作已被拒绝，员工节点会停止本次高风险动作。' });
+                await refreshGovernanceSurfacesAfterTaskAction(employeeName);
+            } catch (err) {
+                showAppDialog({ tone: 'error', title: '拒绝失败', message: err?.message || String(err) });
+            } finally {
+                if (button && button.isConnected) {
+                    button.disabled = false;
+                    button.textContent = originalText || '拒绝执行';
+                }
+            }
         }
 
         function getAdapterTypeDisplayLabel(adapterType) {
@@ -3210,7 +4584,12 @@
                 showAppDialog({ tone: 'warning', title: '还没有选中任务', message: '请先在左侧选择一条周期任务，再决定是否删除。' });
                 return;
             }
-            if (!confirm(`确定要删除周期任务 ${targetId} 吗？`)) return;
+            if (!await showAppConfirm({
+                title: '删除周期任务',
+                message: `确定要删除周期任务 ${targetId} 吗？`,
+                confirmText: '删除',
+                buttonTone: 'error'
+            })) return;
             const res = await fetch('/api/routines/delete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -3566,34 +4945,61 @@ function adjustGridColumns() {
     if (!grid) return;
 
     if (window.innerWidth >= 1600) {
-        grid.style.gridTemplateColumns = 'repeat(7, minmax(0, 1fr))';
+        grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(230px, 1fr))';
     } else if (window.innerWidth >= 1320) {
-        grid.style.gridTemplateColumns = 'repeat(6, minmax(0, 1fr))';
+        grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(220px, 1fr))';
     } else if (window.innerWidth >= 1024) {
-        grid.style.gridTemplateColumns = 'repeat(5, minmax(0, 1fr))';
+        grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(210px, 1fr))';
     } else if (window.innerWidth >= 768) {
-        grid.style.gridTemplateColumns = 'repeat(4, minmax(0, 1fr))';
+        grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(190px, 1fr))';
     } else {
         grid.style.gridTemplateColumns = '';
     }
 }
 window.addEventListener('resize', adjustGridColumns);
 
+function placeAccountBarInHeader() {
+    const shell = document.getElementById('headerAccountShell');
+    const avatarSlot = document.getElementById('headerSideAvatarSlot');
+    const bar = document.getElementById('accountBar');
+    if (avatarSlot && bar && bar.parentElement !== avatarSlot) {
+        avatarSlot.appendChild(bar);
+    } else if (shell && bar && bar.parentElement !== shell) {
+        shell.prepend(bar);
+    }
+}
+
 function syncGuideRightHeight() {
     const headerLeft = document.querySelector('.header-left');
     const guideRight = document.querySelector('.guide-right');
+    const headerContainer = document.querySelector('.header-container');
+    const sidePanel = document.querySelector('.header-side-panel');
     if (!headerLeft || !guideRight) return;
 
     if (window.matchMedia('(min-width: 900px)').matches) {
         const leftHeight = Math.ceil(headerLeft.scrollHeight || headerLeft.getBoundingClientRect().height);
-        const panelHeight = Math.max(260, leftHeight);
+        const viewportCap = Math.max(320, Math.min(460, Math.floor(window.innerHeight * 0.56)));
+        const panelHeight = Math.min(viewportCap, Math.max(300, leftHeight));
+        headerContainer?.style.setProperty('--guide-panel-height', `${panelHeight}px`);
         guideRight.style.height = `${panelHeight}px`;
         guideRight.style.maxHeight = `${panelHeight}px`;
         guideRight.style.overflowY = 'auto';
+        if (sidePanel && window.matchMedia('(min-width: 1280px)').matches) {
+            sidePanel.style.height = `${panelHeight}px`;
+            sidePanel.style.maxHeight = `${panelHeight}px`;
+        } else if (sidePanel) {
+            sidePanel.style.height = '';
+            sidePanel.style.maxHeight = '';
+        }
     } else {
+        headerContainer?.style.removeProperty('--guide-panel-height');
         guideRight.style.height = '';
         guideRight.style.maxHeight = '';
         guideRight.style.overflowY = '';
+        if (sidePanel) {
+            sidePanel.style.height = '';
+            sidePanel.style.maxHeight = '';
+        }
     }
 }
 
@@ -3621,6 +5027,12 @@ function createDeskElement() {
             document.getElementById('recruitResume').value = '';
             document.getElementById('recruitUrl').value = '';
             document.getElementById('recruitModelIndex').value = '0';
+            document.getElementById('recruitAdapterType').value = 'localnode';
+            document.getElementById('recruitAgentNodeId').value = '';
+            document.getElementById('recruitWorkspacePath').value = '';
+            document.getElementById('runnerCommandBox').value = '';
+            document.getElementById('runnerConnectStatus').innerText = '选择桌面客户端后，会自动匹配在线客户端。';
+            toggleRunnerFields();
             document.getElementById('recruitModal').style.display = 'flex';
         } else if (desk.classList.contains('at-work')) {
             currentTargetDesk = desk;
@@ -3714,7 +5126,9 @@ function getBoardTaskValue(task, key) {
     return task?.[lower] ?? task?.[key] ?? '';
 }
 
-async function retryBoardTask(projectName, taskId) {
+async function retryBoardTask(projectName, taskId, trigger) {
+    const retryButton = trigger && trigger.tagName ? trigger : null;
+    const originalText = retryButton ? retryButton.textContent : '';
     if (!projectName || !taskId) {
         showAppDialog({
             tone: 'warning',
@@ -3725,8 +5139,14 @@ async function retryBoardTask(projectName, taskId) {
     }
 
     try {
+        if (retryButton) {
+            retryButton.disabled = true;
+            retryButton.style.pointerEvents = 'none';
+            retryButton.textContent = '重试中...';
+        }
         const res = await fetch('/api/board/retry', {
             method: 'POST',
+            cache: 'no-store',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ projectName, taskId })
         });
@@ -3749,6 +5169,12 @@ async function retryBoardTask(projectName, taskId) {
             title: '重新尝试失败',
             message: e?.message || String(e)
         });
+    } finally {
+        if (retryButton && retryButton.isConnected) {
+            retryButton.disabled = false;
+            retryButton.style.pointerEvents = '';
+            retryButton.textContent = originalText || '重新尝试';
+        }
     }
 }
 
@@ -3762,7 +5188,12 @@ async function deleteBoardTask(projectName, taskId) {
         return;
     }
 
-    if (!confirm('确定要删除这条任务吗？删除后不会自动恢复。')) {
+    if (!await showAppConfirm({
+        title: '删除任务',
+        message: '确定要删除这条任务吗？删除后不会自动恢复。',
+        confirmText: '删除',
+        buttonTone: 'error'
+    })) {
         return;
     }
 
@@ -3804,7 +5235,11 @@ async function restartProjectTasks(projectName) {
         return;
     }
 
-    if (!confirm(`确定要一键重新开始《${projectName}》里的任务吗？`)) {
+    if (!await showAppConfirm({
+        title: '重新开始项目任务',
+        message: `确定要一键重新开始《${projectName}》里的任务吗？`,
+        confirmText: '重新开始'
+    })) {
         return;
     }
 
@@ -4265,6 +5700,8 @@ async function performTaskGovernanceAction(action, taskId, employeeName, options
     }
     if (spec.action === '先恢复执行' || spec.action === '打开关联运行') {
         await openBoardTaskLatestRun(spec.taskId, spec.employeeName);
+    } else if (spec.action === '先审批继续') {
+        await approveBoardTaskAgentApproval(spec.taskId, spec.employeeName, null);
     } else if (spec.action === '先提交审核') {
         await submitBoardTaskForReview(spec.taskId);
     } else if (spec.action === '先通知审核责任人') {
@@ -4907,7 +6344,7 @@ function buildTaskCtaOperatorMode(surface, task, employeeName, options = {}) {
     }
     const normalizedSurface = String(surface || 'board').trim().toLowerCase();
     const normalizedEmployee = String(employeeName || task?.assignee || task?.Assignee || '').trim();
-    const taskStatus = String(task?.status || task?.Status || '').trim().toLowerCase();
+    const taskStatus = getEffectiveBoardTaskStatus(task);
     const latestRun = options?.latestRun || (task && normalizedEmployee ? findLatestRunForTask(task, normalizedEmployee) : null);
     const latestRunStatus = String(latestRun?.status || latestRun?.Status || '').trim().toLowerCase();
     const blockedReason = String(task?.blocked_reason || task?.BlockedReason || '').trim();
@@ -4933,7 +6370,7 @@ function buildTaskControlPlanePhase(surface, task, employeeName, options = {}) {
     const normalizedEmployee = String(employeeName || task?.assignee || task?.Assignee || '').trim();
     const operatorMode = String(options?.operatorMode || buildTaskCtaOperatorMode(normalizedSurface, task, normalizedEmployee, options)).trim().toLowerCase();
     const latestRun = options?.latestRun || (task && normalizedEmployee ? findLatestRunForTask(task, normalizedEmployee) : null);
-    const taskStatus = String(task?.status || task?.Status || '').trim().toLowerCase();
+    const taskStatus = getEffectiveBoardTaskStatus(task);
     const latestRunStatus = String(latestRun?.status || latestRun?.Status || '').trim().toLowerCase();
     const phase = forcedPhase || (taskStatus === 'done'
         ? 'post_review_followup'
@@ -4966,7 +6403,7 @@ function buildTaskCtaModeHandoff(surface, task, employeeName, options = {}) {
     const phase = options?.phase || buildTaskControlPlanePhase(normalizedSurface, task, normalizedEmployee, options);
     const currentMode = phase?.operatorMode || buildTaskCtaOperatorMode(normalizedSurface, task, normalizedEmployee, options);
     const recommendation = options?.recommendation || (task && normalizedEmployee ? buildTaskGovernanceRecommendation(task, normalizedEmployee) : null);
-    const taskStatus = String(task?.status || task?.Status || '').trim().toLowerCase();
+    const taskStatus = getEffectiveBoardTaskStatus(task);
     if (phase?.phase === 'discovering' || currentMode === 'browse') {
         return {
             currentMode,
@@ -6587,7 +8024,11 @@ async function executeTaskCtaPreferenceDigestAction(digestPolicy, action, state,
         showAppDialog({ tone: 'warning', title: executionPolicy.reviewTitle, message: executionPolicy.reviewMessage, confirmText: '先去复核' });
         return false;
     }
-    if (executionPolicy.requiresConfirmation && !confirm(executionPolicy.confirmMessage)) {
+    if (executionPolicy.requiresConfirmation && !await showAppConfirm({
+        title: executionPolicy.actionLabel || '确认执行',
+        message: executionPolicy.confirmMessage,
+        confirmText: '继续执行'
+    })) {
         return false;
     }
     const actionRecord = { kind: executionPolicy.actionKind, label: executionPolicy.actionLabel };
@@ -7020,6 +8461,7 @@ function summarizeBoardTaskResult(task, statusClass) {
         return cleaned.length > 180 ? `${cleaned.slice(0, 180)}...` : cleaned;
     }
     if (statusClass === 'done') return '任务已完成，暂未写入额外交付说明。';
+    if (statusClass === 'waiting_approval') return '任务已暂停，等待你批准或拒绝员工节点请求的系统操作。';
     if (statusClass === 'doing' || statusClass === 'in_progress') return '正在执行中，阶段完成后会在这里显示交付摘要。';
     if (statusClass === 'failed' || statusClass === 'blocked') return '当前任务存在阻塞或失败，请展开“治理与操作”查看处理动作。';
     if (statusClass === 'cancelled') return '任务已取消，详情可展开查看执行历史。';
@@ -7093,10 +8535,11 @@ function renderBoardTaskDeliverableChips(task, taskResult, statusClass) {
 
 function renderBoardTaskDeliveryPanel(task, statusClass, statusText) {
     const taskResult = task?.result || task?.Result || '';
+    const isApproval = statusClass === 'waiting_approval';
     const isFailed = statusClass === 'failed' || statusClass === 'blocked';
     const isCancelled = statusClass === 'cancelled';
-    const title = isFailed ? '问题摘要' : (isCancelled ? '取消摘要' : '交付总结');
-    const summaryClass = isFailed ? ' error' : (isCancelled ? ' cancelled' : '');
+    const title = isApproval ? '待审批动作' : (isFailed ? '问题摘要' : (isCancelled ? '取消摘要' : '交付总结'));
+    const summaryClass = isApproval ? ' approval' : (isFailed ? ' error' : (isCancelled ? ' cancelled' : ''));
     return `
         <div class="board-task-delivery-grid">
             <div class="board-task-delivery-card summary${summaryClass}">
@@ -7136,6 +8579,7 @@ function getBoardTaskPhaseLabel(task) {
 function getBoardTaskProgressLabel(statusClass) {
     const normalized = String(statusClass || 'todo').toLowerCase();
     if (normalized === 'done') return { label: '已完成', tone: 'done' };
+    if (normalized === 'waiting_approval') return { label: '待人工审批', tone: 'warning' };
     if (normalized === 'doing' || normalized === 'in_progress') return { label: '执行中', tone: 'primary' };
     if (normalized === 'in_review') return { label: '待审核', tone: 'warning' };
     if (normalized === 'blocked' || normalized === 'failed') return { label: '需处理', tone: 'error' };
@@ -7169,10 +8613,18 @@ function renderBoardTaskPrimaryActions(projectNameRaw, task, statusClass, option
     const employeeName = String(task?.assignee || task?.Assignee || '').trim();
     const canStart = !!options.canStart;
     const canRetry = !!options.canRetry;
+    const needsApproval = statusClass === 'waiting_approval';
     const isRunning = statusClass === 'doing' || statusClass === 'in_progress';
     const isDone = statusClass === 'done';
+    if (needsApproval && taskId && employeeName) {
+        return `<div class="board-task-actions">
+            <button type="button" class="board-task-secondary-btn approve" onclick="event.stopPropagation(); approveBoardTaskAgentApproval('${escapeJsSingleQuotedString(taskId)}', '${escapeJsSingleQuotedString(employeeName)}', this);">批准继续</button>
+            <button type="button" class="board-task-secondary-btn danger" onclick="event.stopPropagation(); rejectBoardTaskAgentApproval('${escapeJsSingleQuotedString(taskId)}', '${escapeJsSingleQuotedString(employeeName)}', this);">拒绝执行</button>
+            <button type="button" class="board-task-secondary-btn" onclick="event.stopPropagation(); openBoardTaskLatestRun('${escapeJsSingleQuotedString(taskId)}', '${escapeJsSingleQuotedString(employeeName)}').catch(err => showAppDialog({ title: '打开运行失败', message: err.message || '最近运行打开失败', tone: 'error' }))">查看运行</button>
+        </div>`;
+    }
     if (canRetry) {
-        return `<div class="board-task-actions"><button type="button" class="board-task-primary-btn ${canStart ? '' : 'warning'}" onclick="event.stopPropagation(); retryBoardTask('${escapeJsSingleQuotedString(projectNameRaw)}', '${escapeJsSingleQuotedString(taskId)}');">${canStart ? '开始执行' : '重新尝试'}</button></div>`;
+        return `<div class="board-task-actions"><button type="button" class="board-task-primary-btn ${canStart ? '' : 'warning'}" onclick="event.stopPropagation(); retryBoardTask('${escapeJsSingleQuotedString(projectNameRaw)}', '${escapeJsSingleQuotedString(taskId)}', this);">${canStart ? '开始执行' : '重新尝试'}</button></div>`;
     }
     if (isRunning && taskId && employeeName) {
         return `<div class="board-task-actions"><button type="button" class="board-task-secondary-btn" onclick="event.stopPropagation(); openBoardTaskLatestRun('${escapeJsSingleQuotedString(taskId)}', '${escapeJsSingleQuotedString(employeeName)}').catch(err => showAppDialog({ title: '打开运行失败', message: err.message || '最近运行打开失败', tone: 'error' }))">查看运行</button></div>`;
@@ -7186,7 +8638,7 @@ function renderBoardTaskPrimaryActions(projectNameRaw, task, statusClass, option
 function renderBoardTaskMoreActionsDetails(task, projectNameRaw, statusClass) {
     const taskId = String(task?.id || task?.Id || '');
     const employeeName = String(task?.assignee || task?.Assignee || '').trim();
-    const canDelete = !['doing', 'in_progress'].includes(String(statusClass || '').toLowerCase()) && !!taskId;
+    const canDelete = !['doing', 'in_progress', 'waiting_approval'].includes(String(statusClass || '').toLowerCase()) && !!taskId;
     const buttons = [
         employeeName ? `<button type="button" class="board-task-secondary-btn" onclick="event.stopPropagation(); jumpToEmployeeControlCard('${escapeJsSingleQuotedString(employeeName)}');">查看负责人工位</button>` : '',
         canDelete ? `<button type="button" class="board-task-secondary-btn danger" onclick="event.stopPropagation(); deleteBoardTask('${escapeJsSingleQuotedString(projectNameRaw)}', '${escapeJsSingleQuotedString(taskId)}');">删除任务</button>` : ''
@@ -7195,16 +8647,29 @@ function renderBoardTaskMoreActionsDetails(task, projectNameRaw, statusClass) {
     return renderBoardTaskDetailSection('更多操作', `<div class="board-task-inline-actions">${buttons}</div>`, '可选');
 }
 
+function getEffectiveBoardTaskStatus(task) {
+    const rawStatus = String(task?.status || task?.Status || 'todo').toLowerCase();
+    if (findCachedPendingApprovalRunForTask(task)) {
+        return 'waiting_approval';
+    }
+    const result = String(task?.result || task?.Result || '');
+    if (['doing', 'in_progress'].includes(rawStatus) && /(等待人工审批|waiting_approval|Waiting approval)/i.test(result)) {
+        return 'waiting_approval';
+    }
+    return rawStatus;
+}
+
 function buildBoardDeliveryStats(projects) {
-    const stats = { projects: Array.isArray(projects) ? projects.length : 0, tasks: 0, done: 0, active: 0, blocked: 0, artifacts: 0 };
+    const stats = { projects: Array.isArray(projects) ? projects.length : 0, tasks: 0, done: 0, active: 0, approval: 0, blocked: 0, artifacts: 0 };
     (projects || []).forEach(project => {
         const tasks = Array.isArray(project?.tasks || project?.Tasks) ? (project.tasks || project.Tasks) : [];
         tasks.forEach(task => {
-            const status = String(task?.status || task?.Status || 'todo').toLowerCase();
+            const status = getEffectiveBoardTaskStatus(task);
             const result = task?.result || task?.Result || '';
             stats.tasks += 1;
             if (status === 'done') stats.done += 1;
             if (['doing', 'in_progress', 'in_review'].includes(status)) stats.active += 1;
+            if (status === 'waiting_approval') stats.approval += 1;
             if (['blocked', 'failed'].includes(status)) stats.blocked += 1;
             stats.artifacts += collectBoardTaskDeliverables(task, result).length;
         });
@@ -7214,13 +8679,13 @@ function buildBoardDeliveryStats(projects) {
 
 function renderBoardDeliveryOverview(projects) {
     const stats = buildBoardDeliveryStats(projects);
-    const pending = Math.max(0, stats.tasks - stats.done - stats.active - stats.blocked);
+    const pending = Math.max(0, stats.tasks - stats.done - stats.active - stats.approval - stats.blocked);
     return `
         <div class="board-delivery-overview">
             <div class="board-delivery-stat"><span>项目</span><strong>${escapeHtml(String(stats.projects))}</strong></div>
             <div class="board-delivery-stat"><span>任务</span><strong>${escapeHtml(String(stats.tasks))}</strong></div>
             <div class="board-delivery-stat"><span>已完成</span><strong>${escapeHtml(String(stats.done))}</strong></div>
-            <div class="board-delivery-stat"><span>待处理</span><strong>${escapeHtml(String(pending + stats.blocked))}</strong></div>
+            <div class="board-delivery-stat"><span>待处理</span><strong>${escapeHtml(String(pending + stats.approval + stats.blocked))}</strong></div>
             <div class="board-delivery-stat"><span>交付物</span><strong>${escapeHtml(String(stats.artifacts))}</strong></div>
         </div>`;
 }
@@ -7282,6 +8747,41 @@ function findLatestRunForTask(task, employeeName) {
     return matched[0] || null;
 }
 
+function findCachedPendingApprovalRunForTask(task) {
+    const employeeName = String(task?.assignee || task?.Assignee || '').trim();
+    if (!employeeName) return null;
+    const runs = window.agentRunCacheByEmployee?.[employeeName] || [];
+    if (!Array.isArray(runs) || !runs.length) return null;
+    const taskId = String(task?.id || task?.Id || '').trim();
+    const taskTitle = String(task?.title || task?.Title || '').trim();
+    const linkedRunId = getBoardTaskLinkedRunId(task);
+    if (!taskId && !taskTitle && !linkedRunId) return null;
+    return runs.find(run => getPendingApprovalId(run) && runMatchesBoardTask(run, taskId, taskTitle, linkedRunId)) || null;
+}
+
+async function prefetchBoardTaskRunsForProjects(projects) {
+    const names = new Set();
+    (projects || []).forEach(project => {
+        const tasks = Array.isArray(project?.tasks || project?.Tasks) ? (project.tasks || project.Tasks) : [];
+        tasks.forEach(task => {
+            const name = String(task?.assignee || task?.Assignee || '').trim();
+            if (name) names.add(name);
+        });
+    });
+    if (!names.size) return;
+    window.agentRunCacheByEmployee = window.agentRunCacheByEmployee || {};
+    await Promise.all([...names].map(async name => {
+        try {
+            const runs = await fetchAgentJsonSafe('/api/agent/runs?user=' + encodeURIComponent(name));
+            window.agentRunCacheByEmployee[name] = Array.isArray(runs) ? runs : [];
+        } catch (_) {
+            if (!Array.isArray(window.agentRunCacheByEmployee[name])) {
+                window.agentRunCacheByEmployee[name] = [];
+            }
+        }
+    }));
+}
+
 function buildTaskExecutionHistory(task, employeeName) {
     const runs = findRunsForTask(task, employeeName);
     const recentRuns = runs.slice(0, 3);
@@ -7301,13 +8801,23 @@ function buildTaskExecutionHistory(task, employeeName) {
 
 function buildTaskGovernanceRecommendation(task, employeeName) {
     const latestRun = findLatestRunForTask(task, employeeName);
-    const taskStatus = String(task?.status || task?.Status || '').trim().toLowerCase();
+    const taskStatus = getEffectiveBoardTaskStatus(task);
     const runStatus = String(latestRun?.status || latestRun?.Status || '').trim().toLowerCase();
     const reviewer = getBoardTaskReviewer(task, employeeName) || '暂无';
     const blockedReason = String(task?.blocked_reason || task?.BlockedReason || '').trim();
     const contextSummary = String(task?.context_summary || task?.ContextSummary || '').trim();
     const latestComment = getLatestBoardTaskGovernanceAction(task);
     const consistency = getBoardTaskStatusConsistency(task, latestRun);
+    if (taskStatus === 'waiting_approval' || runStatus === 'waiting_approval' || getPendingApprovalId(latestRun)) {
+        return {
+            action: '先审批继续',
+            tone: 'warning',
+            reason: '员工节点正在等待人工审批系统操作。请先批准继续或拒绝执行，避免项目进度停在运行中。',
+            reviewer,
+            consistency,
+            latestComment
+        };
+    }
     if (blockedReason) {
         return {
             action: '先升级给上级',
@@ -7462,10 +8972,12 @@ function getBoardTaskStatusLabel(status) {
 }
 
 function getBoardTaskStatusConsistency(task, latestRun) {
-    const taskStatus = String(task?.status || task?.Status || '').trim().toLowerCase();
+    const taskStatus = getEffectiveBoardTaskStatus(task);
     const runStatus = String(latestRun?.status || latestRun?.Status || '').trim().toLowerCase();
     if (!latestRun) return '暂无运行';
     if (!taskStatus || !runStatus) return '需人工跟进';
+    if (taskStatus === 'waiting_approval' && runStatus === 'waiting_approval') return '一致';
+    if (taskStatus === 'waiting_approval' && runStatus !== 'waiting_approval') return '运行状态与任务状态不一致';
     if (taskStatus === 'in_review' && ['running', 'queued', 'pending'].includes(runStatus)) return '运行状态与任务状态不一致';
     if (taskStatus === 'done' && ['failed', 'cancelled', 'timeout'].includes(runStatus)) return '运行状态与任务状态不一致';
     if (taskStatus === 'blocked' && ['running', 'success', 'completed'].includes(runStatus)) return '运行状态与任务状态不一致';
@@ -7484,11 +8996,12 @@ function getLatestBoardTaskGovernanceAction(task) {
 
 function buildBoardTaskExecutionPosture(task, employeeName) {
     const latestRun = findLatestRunForTask(task, employeeName);
-    const taskStatus = String(task?.status || task?.Status || '').trim().toLowerCase();
+    const taskStatus = getEffectiveBoardTaskStatus(task);
     const runStatus = String(latestRun?.status || latestRun?.Status || '').trim().toLowerCase();
     const consistency = getBoardTaskStatusConsistency(task, latestRun);
     const items = [];
     if (['running', 'in_progress', 'queued'].includes(runStatus)) items.push({ label: '运行中', tone: 'info' });
+    if (taskStatus === 'waiting_approval' || runStatus === 'waiting_approval') items.push({ label: '待人工审批', tone: 'warning' });
     if (taskStatus === 'in_review') items.push({ label: '待审核', tone: 'warning' });
     if (['failed', 'cancelled', 'timeout'].includes(runStatus)) items.push({ label: '最近失败', tone: 'error' });
     if (consistency === '运行状态与任务状态不一致') items.push({ label: '运行状态与任务状态不一致', tone: 'warning' });
@@ -7574,7 +9087,12 @@ async function checkoutBoardTask(taskId, worker) {
 }
 
 async function approveBoardTaskReview(taskId, employeeName) {
-    const reviewNote = prompt('请输入审核通过说明：', '审核通过，允许进入已完成。') || '审核通过';
+    const reviewNote = await showAppPrompt({
+        title: '批准审核',
+        message: '请输入审核通过说明：',
+        defaultValue: '审核通过，允许进入已完成。',
+        confirmText: '批准'
+    }) || '审核通过';
     const res = await fetch('/api/tasks/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskId, status: 'done', reviewRequired: false, result: reviewNote }) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || '批准审核失败');
@@ -7583,7 +9101,13 @@ async function approveBoardTaskReview(taskId, employeeName) {
 }
 
 async function rejectBoardTaskReview(taskId, employeeName) {
-    const reviewNote = prompt('请输入打回修改原因：', '仍需补充结果或修复问题。') || '';
+    const reviewNote = await showAppPrompt({
+        title: '打回修改',
+        message: '请输入打回修改原因：',
+        defaultValue: '仍需补充结果或修复问题。',
+        confirmText: '打回',
+        buttonTone: 'warning'
+    }) || '';
     if (!reviewNote.trim()) return;
     const res = await fetch('/api/tasks/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskId, status: 'todo', reviewRequired: false, result: `打回修改：${reviewNote.trim()}` }) });
     const data = await res.json().catch(() => ({}));
@@ -7594,7 +9118,12 @@ async function rejectBoardTaskReview(taskId, employeeName) {
 }
 
 async function addBoardTaskComment(taskId, presetContent = '', employeeName = '', refreshAfter = true) {
-    const content = presetContent || prompt('请输入任务评论：', '补充上下文 / 说明当前风险 / 交接说明') || '';
+    const content = presetContent || await showAppPrompt({
+        title: '添加评论',
+        message: '请输入任务评论：',
+        defaultValue: '补充上下文 / 说明当前风险 / 交接说明',
+        confirmText: '添加'
+    }) || '';
     if (!content.trim()) return;
     const res = await fetch('/api/tasks/comment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskId, author: 'operator', content: content.trim() }) });
     const data = await res.json().catch(() => ({}));
@@ -7611,7 +9140,12 @@ async function openBoardTaskContext(taskId, employeeName) {
 }
 
 async function reassignBoardTaskInline(taskId, currentAssignee) {
-    const assignee = prompt('请输入新的负责人：', currentAssignee || '') || '';
+    const assignee = await showAppPrompt({
+        title: '改派负责人',
+        message: '请输入新的负责人：',
+        defaultValue: currentAssignee || '',
+        confirmText: '改派'
+    }) || '';
     if (!assignee.trim()) return;
     const res = await fetch('/api/tasks/reassign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskId, assignee: assignee.trim(), comment: `任务已改派给 ${assignee.trim()}` }) });
     const data = await res.json().catch(() => ({}));
@@ -7621,7 +9155,13 @@ async function reassignBoardTaskInline(taskId, currentAssignee) {
 }
 
 async function markBoardTaskBlocked(taskId) {
-    const blockedReason = prompt('请输入阻塞原因：', '需要上游确认 / 依赖未完成') || '';
+    const blockedReason = await showAppPrompt({
+        title: '标记阻塞',
+        message: '请输入阻塞原因：',
+        defaultValue: '需要上游确认 / 依赖未完成',
+        confirmText: '标记阻塞',
+        buttonTone: 'warning'
+    }) || '';
     if (!blockedReason.trim()) return;
     const res = await fetch('/api/tasks/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskId, status: 'blocked', blockedReason: blockedReason.trim() }) });
     const data = await res.json().catch(() => ({}));
@@ -7631,7 +9171,12 @@ async function markBoardTaskBlocked(taskId) {
 }
 
 async function submitBoardTaskForReview(taskId) {
-    const reviewNote = prompt('请输入审核说明：', '已完成主要工作，请进入待审核。') || '已提交审核';
+    const reviewNote = await showAppPrompt({
+        title: '提交审核',
+        message: '请输入审核说明：',
+        defaultValue: '已完成主要工作，请进入待审核。',
+        confirmText: '提交'
+    }) || '已提交审核';
     const res = await fetch('/api/tasks/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskId, status: 'in_review', reviewRequired: true, result: reviewNote }) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || '提交审核失败');
@@ -7747,7 +9292,12 @@ async function refreshGovernanceSurfacesAfterTaskAction(employeeName) {
 }
 
 async function approveBoardTaskReview(taskId, employeeName) {
-    const reviewNote = prompt('请输入审核通过说明：', '审核通过，允许进入已完成。') || '审核通过';
+    const reviewNote = await showAppPrompt({
+        title: '批准审核',
+        message: '请输入审核通过说明：',
+        defaultValue: '审核通过，允许进入已完成。',
+        confirmText: '批准'
+    }) || '审核通过';
     const res = await fetch('/api/tasks/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskId, status: 'done', reviewRequired: false, result: reviewNote }) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.message || '批准审核失败');
@@ -7756,7 +9306,13 @@ async function approveBoardTaskReview(taskId, employeeName) {
 }
 
 async function rejectBoardTaskReview(taskId, employeeName) {
-    const reviewNote = prompt('请输入打回修改原因：', '仍需补充结果或修复问题。') || '';
+    const reviewNote = await showAppPrompt({
+        title: '打回修改',
+        message: '请输入打回修改原因：',
+        defaultValue: '仍需补充结果或修复问题。',
+        confirmText: '打回',
+        buttonTone: 'warning'
+    }) || '';
     if (!reviewNote.trim()) return;
     const res = await fetch('/api/tasks/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskId, status: 'todo', reviewRequired: false, result: `打回修改：${reviewNote.trim()}` }) });
     const data = await res.json().catch(() => ({}));
@@ -7767,7 +9323,12 @@ async function rejectBoardTaskReview(taskId, employeeName) {
 }
 
 async function addBoardTaskComment(taskId, presetContent = '', employeeName = '', refreshAfter = true) {
-    const content = presetContent || prompt('请输入任务评论：', '补充上下文 / 说明当前风险 / 交接说明') || '';
+    const content = presetContent || await showAppPrompt({
+        title: '添加评论',
+        message: '请输入任务评论：',
+        defaultValue: '补充上下文 / 说明当前风险 / 交接说明',
+        confirmText: '添加'
+    }) || '';
     if (!content.trim()) return;
     const res = await fetch('/api/tasks/comment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskId, author: 'operator', content: content.trim() }) });
     const data = await res.json().catch(() => ({}));
@@ -7789,17 +9350,24 @@ function renderBoardTaskInlineGovernanceActions(task) {
     const hint = getInlineTaskGovernanceHint(task, employeeName);
     const suggestion = suggestBoardTaskDelegation(task);
     const reviewer = getBoardTaskReviewer(task, employeeName);
-    const isReviewing = String(task?.status || task?.Status || '').toLowerCase() === 'in_review';
+    const taskStatus = getEffectiveBoardTaskStatus(task);
+    const isReviewing = taskStatus === 'in_review';
+    const isWaitingApproval = taskStatus === 'waiting_approval';
     const reviewButtons = isReviewing
         ? `
         <button type="button" class="board-task-control-btn" onclick="event.stopPropagation(); approveBoardTaskReview('${taskId}', '${escapeJsSingleQuotedString(employeeName)}').catch(err => showAppDialog({ title: '批准失败', message: err.message || '批准审核失败', tone: 'error' }))">批准审核</button>
         <button type="button" class="board-task-control-btn" onclick="event.stopPropagation(); rejectBoardTaskReview('${taskId}', '${escapeJsSingleQuotedString(employeeName)}').catch(err => showAppDialog({ title: '打回失败', message: err.message || '打回修改失败', tone: 'error' }))">打回修改</button>`
         : '';
+    const approvalButtons = isWaitingApproval
+        ? `
+        <button type="button" class="board-task-control-btn" onclick="event.stopPropagation(); approveBoardTaskAgentApproval('${taskId}', '${escapeJsSingleQuotedString(employeeName)}', this)">批准继续</button>
+        <button type="button" class="board-task-control-btn" onclick="event.stopPropagation(); rejectBoardTaskAgentApproval('${taskId}', '${escapeJsSingleQuotedString(employeeName)}', this)">拒绝执行</button>`
+        : '';
     return `<div class="board-task-inline-meta"><span class="board-task-risk-pill">${escapeHtml(hint)}</span><span class="board-task-risk-pill">推荐分派给：${escapeHtml(suggestion || '暂无')}</span>${reviewer ? `<span class="board-task-risk-pill">审核责任人：${escapeHtml(reviewer)}</span>` : ''}</div>${renderBoardTaskCommentTimeline(task)}<div class="board-task-inline-actions">
         <button type="button" class="board-task-control-btn" onclick="event.stopPropagation(); checkoutBoardTask('${taskId}', '${escapeJsSingleQuotedString(employeeName)}').catch(err => showAppDialog({ title: '领取失败', message: err.message || '领取任务失败', tone: 'error' }))">领取任务</button>
         <button type="button" class="board-task-control-btn" onclick="event.stopPropagation(); reassignBoardTaskInline('${taskId}', '${escapeJsSingleQuotedString(employeeName)}').catch(err => showAppDialog({ title: '改派失败', message: err.message || '改派负责人失败', tone: 'error' }))">改派负责人</button>
         <button type="button" class="board-task-control-btn" onclick="event.stopPropagation(); markBoardTaskBlocked('${taskId}').catch(err => showAppDialog({ title: '阻塞失败', message: err.message || '标记阻塞失败', tone: 'error' }))">标记阻塞</button>
-        <button type="button" class="board-task-control-btn" onclick="event.stopPropagation(); submitBoardTaskForReview('${taskId}').catch(err => showAppDialog({ title: '提交审核失败', message: err.message || '提交审核失败', tone: 'error' }))">提交审核</button>${reviewButtons}
+        <button type="button" class="board-task-control-btn" onclick="event.stopPropagation(); submitBoardTaskForReview('${taskId}').catch(err => showAppDialog({ title: '提交审核失败', message: err.message || '提交审核失败', tone: 'error' }))">提交审核</button>${reviewButtons}${approvalButtons}
         <button type="button" class="board-task-control-btn" onclick="event.stopPropagation(); addBoardTaskComment('${taskId}', '', '${escapeJsSingleQuotedString(employeeName)}').catch(err => showAppDialog({ title: '评论失败', message: err.message || '添加评论失败', tone: 'error' }))">添加评论</button>
         <button type="button" class="board-task-control-btn" onclick="event.stopPropagation(); openBoardTaskLatestRun('${escapeJsSingleQuotedString(taskId)}', '${escapeJsSingleQuotedString(employeeName)}').catch(err => showAppDialog({ title: '打开运行失败', message: err.message || '最近运行打开失败', tone: 'error' }))">最近运行</button>
         <button type="button" class="board-task-control-btn" onclick="event.stopPropagation(); escalateBoardTaskToManager('${taskId}', '${escapeJsSingleQuotedString(employeeName)}').catch(err => showAppDialog({ title: '升级失败', message: err.message || '升级处理失败', tone: 'error' }))">升级给上级</button>
@@ -7809,10 +9377,11 @@ function renderBoardTaskInlineGovernanceActions(task) {
 
 async function refreshBoard() {
     try {
-        const res = await fetch('/api/board');
+        const res = await fetch('/api/board', { cache: 'no-store' });
         if (!res.ok) return;
         const projects = await res.json();
         window.latestBoardProjects = projects || [];
+        await prefetchBoardTaskRunsForProjects(window.latestBoardProjects);
 
         const listContainer = document.getElementById('boardProjectList');
         listContainer.innerHTML = '';
@@ -7830,12 +9399,13 @@ async function refreshBoard() {
                 if (project.tasks && project.tasks.length > 0) {
                     totalTasks = project.tasks.length;
                     project.tasks.forEach(task => {
-                        const statusClass = String(task.status || task.Status || 'todo').toLowerCase();
+                        const statusClass = getEffectiveBoardTaskStatus(task);
                         if (statusClass === 'done') doneTasks++;
 
                         let statusText = '待办 (TODO)';
                         if (statusClass === 'doing') statusText = '进行中 (DOING)';
                         if (statusClass === 'in_progress') statusText = '进行中 (DOING)';
+                        if (statusClass === 'waiting_approval') statusText = '待人工审批 (APPROVAL)';
                         if (statusClass === 'backlog') statusText = '等待前置 (BACKLOG)';
                         if (statusClass === 'in_review') statusText = '待审核 (REVIEW)';
                         if (statusClass === 'blocked') statusText = '已阻塞 (BLOCKED)';
@@ -7854,8 +9424,9 @@ async function refreshBoard() {
                         const controlPlaneSummaryHtml = buildBoardTaskControlPlaneSummary(task, project);
                         const primaryActionsHtml = renderBoardTaskPrimaryActions(projectNameRaw, task, statusClass, { canStart, canRetry });
                         const moreActionsHtml = renderBoardTaskMoreActionsDetails(task, projectNameRaw, statusClass);
+                        const cardStateClass = statusClass === 'waiting_approval' ? 'approval' : '';
                         tasksHtml += `
-                        <div class="task-row board-task-card" data-task-id="${escapeHtml(taskId)}" data-project-name="${escapeHtml(projectNameRaw)}" style="display:flex; flex-direction:column; align-items:stretch; padding: 12px 0;">
+                        <div class="task-row board-task-card ${cardStateClass}" data-task-id="${escapeHtml(taskId)}" data-project-name="${escapeHtml(projectNameRaw)}" style="display:flex; flex-direction:column; align-items:stretch; padding: 12px 0;">
                             <div class="board-task-head">
                                 <div class="board-task-main">
                                     <div class="task-title board-task-title-text">${escapeHtml(task.title || task.Title)}</div>
@@ -7936,7 +9507,12 @@ function toggleProject(headerEl) {
 }
 
 async function deleteProject() {
-    if (!confirm('确定要清空整个项目看板吗？此操作会删除所有项目和任务。')) return;
+    if (!await showAppConfirm({
+        title: '清空项目看板',
+        message: '确定要清空整个项目看板吗？此操作会删除所有项目和任务。',
+        confirmText: '清空',
+        buttonTone: 'error'
+    })) return;
     try {
         const res = await fetch('/api/board', { method: 'DELETE' });
         if (res.ok) {
@@ -7963,6 +9539,63 @@ function ensureOneEmptyDesk() {
     }
 }
 
+function normalizeTeamConfigPayload(cfg) {
+    if (!cfg || typeof cfg !== 'object') return null;
+    cfg.PeerNodes = cfg.PeerNodes || cfg.peerNodes || {};
+    cfg.CompanyName = cfg.CompanyName || cfg.companyName || '';
+    cfg.CompanyProfile = cfg.CompanyProfile || cfg.companyProfile || '';
+    cfg.MasterNodeUrl = cfg.MasterNodeUrl || cfg.masterNodeUrl || '';
+    cfg.Projects = cfg.Projects || cfg.projects || [];
+    return cfg;
+}
+
+function hasEmployeeConfig(cfg) {
+    return Object.keys((cfg && cfg.PeerNodes) || {}).filter(name => name !== 'ceo').length > 0;
+}
+
+function isMeaningfulTeamConfig(cfg) {
+    if (!cfg || typeof cfg !== 'object') return false;
+    const peerCount = Object.keys(cfg.PeerNodes || {}).length;
+    const projectCount = Array.isArray(cfg.Projects) ? cfg.Projects.length : 0;
+    return !!(cfg.CompanyName || cfg.CompanyProfile || cfg.MasterNodeUrl || peerCount > 0 || projectCount > 0);
+}
+
+function applyTeamConfigIfUsable(cfg, options = {}) {
+    const normalized = normalizeTeamConfigPayload(cfg);
+    if (!isMeaningfulTeamConfig(normalized)) return false;
+    const currentHasEmployees = hasEmployeeConfig(window.teamConfig);
+    const incomingHasEmployees = hasEmployeeConfig(normalized);
+    if (!options.force && currentHasEmployees && !incomingHasEmployees) {
+        console.warn('忽略一次空配置响应，保留当前账号公司视图。');
+        return false;
+    }
+    window.teamConfig = normalized;
+    return true;
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function fetchTeamConfigNoStore(retries = 1) {
+    let lastError = null;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const res = await fetch('/api/config', { cache: 'no-store' });
+            if (!res.ok) throw new Error(`config_http_${res.status}`);
+            const cfg = normalizeTeamConfigPayload(await res.json());
+            if (!isMeaningfulTeamConfig(cfg)) throw new Error('config_empty');
+            return cfg;
+        } catch (error) {
+            lastError = error;
+            if (attempt < retries) await sleep(260 + attempt * 320);
+        }
+    }
+    const initial = normalizeTeamConfigPayload(window.__INITIAL_TEAM_CONFIG__);
+    if (isMeaningfulTeamConfig(initial)) return initial;
+    throw lastError || new Error('config_failed');
+}
+
 function buildControlPlaneOverviewMetrics(config, alerts = [], routines = [], heartbeats = {}) {
     const peerEntries = Object.entries(config?.PeerNodes || {}).filter(([name]) => name !== 'ceo');
     const tasks = (config?.Projects || []).flatMap(project => Array.isArray(project?.tasks || project?.Tasks) ? (project.tasks || project.Tasks) : []);
@@ -7985,22 +9618,60 @@ function buildControlPlaneOverviewMetrics(config, alerts = [], routines = [], he
     ];
 }
 
+function updateHeaderSidePanel(metrics, config = {}, alerts = [], routines = [], heartbeats = {}, adminConfig = null) {
+    const stats = document.getElementById('headerSideStats');
+    if (!stats) return;
+    updateHeaderAccountMeta(window.currentAccount, config);
+    const employeeCount = Number(metrics[0]?.value || 0);
+    const modelCount = Array.isArray(adminConfig?.models)
+        ? adminConfig.models.filter(model => model?.enabled !== false).length
+        : null;
+    const activeEmployees = Object.values(heartbeats || {}).filter(item => ['running', 'healthy'].includes(String(item?.last_status || item?.LastStatus || '').toLowerCase())).length;
+    const masterNodeUrl = String(config?.MasterNodeUrl || config?.masterNodeUrl || '').trim();
+    const items = [
+        { label: '数据库', value: '已连接', detail: 'PostgreSQL', tone: 'good' },
+        { label: '员工', value: employeeCount, detail: employeeCount > 0 ? '已接入' : '待添加', tone: employeeCount > 0 ? 'good' : 'warning' },
+        { label: '模型', value: modelCount ?? '-', detail: modelCount === null ? '未读取' : (modelCount > 0 ? 'API 可用' : '待配置'), tone: modelCount > 0 ? 'good' : 'warning' },
+        { label: '节点', value: masterNodeUrl ? '已接入' : '未配置', detail: activeEmployees > 0 ? `${activeEmployees} 在线` : (masterNodeUrl ? '待命中' : '无地址'), tone: masterNodeUrl ? 'good' : 'warning' }
+    ];
+    stats.innerHTML = items.map(item => {
+        const toneClass = item.tone === 'good' ? 'good' : item.tone === 'danger' ? 'danger' : item.tone === 'warning' ? 'warning' : '';
+        return `<div class="header-side-stat ${toneClass}"><div class="header-side-stat-label">${escapeHtml(item.label)}</div><div class="header-side-stat-value">${escapeHtml(String(item.value))}</div><div class="header-side-stat-detail">${escapeHtml(item.detail)}</div></div>`;
+    }).join('');
+
+    const status = document.getElementById('headerSideStatus');
+    if (status) status.textContent = alerts.length ? `${alerts.length} 条告警` : '已连接';
+}
+
 async function refreshControlPlaneOverview() {
     const strip = document.getElementById('controlPlaneOverviewStrip');
     if (!strip) return;
+    const safeText = value => String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
     try {
-        const [configRes, alertRes, heartbeatRes, routineRes] = await Promise.all([
-            fetch('/api/config'),
-            fetch('/api/alerts'),
-            fetch('/api/heartbeat'),
-            fetch('/api/routines')
+        const [configResult, alertRes, heartbeatRes, routineRes, adminRes] = await Promise.all([
+            fetchTeamConfigNoStore(1).then(config => ({ ok: true, config })).catch(error => ({ ok: false, error })),
+            fetch('/api/alerts', { cache: 'no-store' }),
+            fetch('/api/heartbeat', { cache: 'no-store' }),
+            fetch('/api/routines', { cache: 'no-store' }),
+            fetch('/api/account/admin/config', { cache: 'no-store' }).catch(() => null)
         ]);
-        const config = configRes.ok ? await configRes.json() : (window.teamConfig || {});
+        if (configResult.ok) {
+            applyTeamConfigIfUsable(configResult.config, { force: !hasEmployeeConfig(window.teamConfig) });
+        } else {
+            console.warn('公司配置同步失败，保留当前页面数据。', configResult.error);
+        }
+        const config = window.teamConfig || {};
         const alerts = alertRes.ok ? await alertRes.json() : [];
         const heartbeats = heartbeatRes.ok ? await heartbeatRes.json() : {};
         const routines = routineRes.ok ? await routineRes.json() : [];
-        window.teamConfig = config;
+        const adminConfig = adminRes?.ok ? await adminRes.json() : null;
         const metrics = buildControlPlaneOverviewMetrics(config, alerts, routines, heartbeats);
+        updateHeaderSidePanel(metrics, config, alerts, routines, heartbeats, adminConfig);
         strip.innerHTML = metrics.map(metric => {
             const toneStyle = metric.tone === 'danger'
                 ? 'background:linear-gradient(135deg,#fff1f2,#ffe4e6); border-color:#fecdd3; color:#be123c;'
@@ -8009,22 +9680,22 @@ async function refreshControlPlaneOverview() {
                     : metric.tone === 'active'
                         ? 'background:linear-gradient(135deg,#ecfeff,#cffafe); border-color:#a5f3fc; color:#0f766e;'
                         : 'background:rgba(255,255,255,0.82); border-color:rgba(148,163,184,0.28); color:#0f172a;';
-            return `<div style="padding:10px 12px; border-radius:12px; border:1px solid; ${toneStyle}"><div style="font-size:11px; color:#64748b;">${escapeHtml(metric.label)}</div><div style="font-size:18px; font-weight:800; margin-top:2px;">${escapeHtml(String(metric.value))}</div></div>`;
+            return `<div style="padding:10px 12px; border-radius:12px; border:1px solid; ${toneStyle}"><div style="font-size:11px; color:#64748b;">${safeText(metric.label)}</div><div style="font-size:18px; font-weight:800; margin-top:2px;">${safeText(metric.value)}</div></div>`;
         }).join('');
         requestAnimationFrame(syncGuideRightHeight);
     } catch (e) {
+        console.warn('控制平面总览渲染失败', e);
         strip.innerHTML = '<div style="padding:10px 12px; border-radius:12px; background:#fff7ed; border:1px solid #fdba74; color:#9a3412;">控制平面总览暂时不可用</div>';
     }
 }
 
 window.addEventListener('load', async () => {
+    placeAccountBarInHeader();
     const guideDiv = document.getElementById('onboardingGuide');
 
     try {
-        const res = await fetch('/api/config');
-        if (!res.ok) return;
-        const cfg = await res.json();
-        window.teamConfig = cfg;
+        const cfg = await fetchTeamConfigNoStore(2);
+        if (!applyTeamConfigIfUsable(cfg, { force: true })) throw new Error('config_empty');
 
         document.getElementById('companyNameDisplay').innerText = cfg.CompanyName || '牛马Claw';
         const licenseTag = document.getElementById('licenseTag');
@@ -8060,6 +9731,9 @@ window.addEventListener('load', async () => {
         }
     } catch (e) {
         console.error('加载团队配置失败：', e);
+    }
+    if (guideDiv && !window.teamConfig) {
+        guideDiv.innerHTML = '<strong>公司资料正在同步</strong><br>没有读到账号配置时不会覆盖现有数据，请稍后刷新。';
     }
     await refreshControlPlaneOverview();
     requestAnimationFrame(syncGuideRightHeight);
@@ -10281,7 +11955,12 @@ async function confirmTaskV2() {
 
 async function cancelEmployeeTask() {
     if (!currentTargetDesk || !currentTargetName) return;
-    if (!confirm(`确定要取消 ${currentTargetName} 当前正在执行的任务吗？`)) return;
+    if (!await showAppConfirm({
+        title: '取消当前任务',
+        message: `确定要取消 ${currentTargetName} 当前正在执行的任务吗？`,
+        confirmText: '取消任务',
+        buttonTone: 'error'
+    })) return;
 
     try {
         const res = await fetch('/api/cancel', {
@@ -10307,7 +11986,12 @@ async function cancelEmployeeTask() {
 }
 
 async function deleteFromBoss(agentId, agentName) {
-    if (!confirm(`确定要把 ${agentName} 从 BOSS 大厅移除吗？`)) return;
+    if (!await showAppConfirm({
+        title: '移出 BOSS 大厅',
+        message: `确定要把 ${agentName} 从 BOSS 大厅移除吗？`,
+        confirmText: '移除',
+        buttonTone: 'error'
+    })) return;
 
     try {
         const res = await fetch('/api/boss/delete', {
@@ -10434,10 +12118,19 @@ async function openBossMarket() {
 }
 
 async function hireFromBoss(agentId, agentName) {
-    const nodeUrl = prompt(`请输入要接收 ${agentName} 的节点地址：`, 'http://127.0.0.1:5050');
+    const nodeUrl = await showAppPrompt({
+        title: '接收员工',
+        message: `请输入要接收 ${agentName} 的节点地址：`,
+        defaultValue: 'http://127.0.0.1:5050',
+        confirmText: '继续'
+    });
     if (!nodeUrl) return;
 
-    if (!confirm(`确定要把 ${agentName} 招进当前团队，并同步到节点 ${nodeUrl} 吗？`)) return;
+    if (!await showAppConfirm({
+        title: '确认招入员工',
+        message: `确定要把 ${agentName} 招进当前团队，并同步到节点 ${nodeUrl} 吗？`,
+        confirmText: '招入'
+    })) return;
 
     document.getElementById('loadingOverlay').style.display = 'flex';
     document.querySelector('.hr-loading-text').innerText = '正在从 BOSS 大厅接收员工...';
@@ -10464,7 +12157,11 @@ async function hireFromBoss(agentId, agentName) {
 
 async function uploadToBoss() {
     if (!currentTargetName) return;
-    if (!confirm(`确定要把 ${currentTargetName} 发布到 BOSS 大厅吗？`)) return;
+    if (!await showAppConfirm({
+        title: '发布到 BOSS 大厅',
+        message: `确定要把 ${currentTargetName} 发布到 BOSS 大厅吗？`,
+        confirmText: '发布'
+    })) return;
 
     closeModal('taskModal');
     document.getElementById('loadingOverlay').style.display = 'flex';
@@ -10489,7 +12186,12 @@ async function uploadToBoss() {
 
 async function openLicenseModal() {
     const currentName = document.getElementById('companyNameDisplay').innerText;
-    const newName = prompt('请输入要注册到 BOSS 大厅的公司名称：', currentName);
+    const newName = await showAppPrompt({
+        title: '注册公司名称',
+        message: '请输入要注册到 BOSS 大厅的公司名称：',
+        defaultValue: currentName,
+        confirmText: '提交'
+    });
     if (!newName || newName === currentName) return;
 
     try {
@@ -10516,7 +12218,12 @@ async function fetchNodeModels(targetIndex = null) {
     const url = document.getElementById('recruitUrl').value.trim();
     const select = document.getElementById('recruitModelIndex');
     const status = document.getElementById('modelFetchStatus');
+    const adapterType = document.getElementById('recruitAdapterType')?.value || 'localnode';
 
+    if (adapterType !== 'localnode') {
+        status.innerText = '本机 Runner 使用账号后台模型或本机命令，不需要读取 5050 节点模型。';
+        return;
+    }
     if (!url) return;
     status.innerText = '正在读取节点模型列表...';
     select.innerHTML = '<option value="0">默认模型 (0)</option>';
@@ -10547,8 +12254,293 @@ async function fetchNodeModels(targetIndex = null) {
     }
 }
 
+function parseAgentNodeIdFromUrl(url) {
+    const match = String(url || '').match(/^agent-node:\/\/(\d+)/i);
+    return match ? match[1] : '';
+}
+
+function toggleRunnerFields() {
+    const adapter = document.getElementById('recruitAdapterType')?.value || 'localnode';
+    const runnerBox = document.getElementById('runnerConnectBox');
+    const urlInput = document.getElementById('recruitUrl');
+    if (runnerBox) runnerBox.style.display = adapter === 'localnode' ? 'none' : 'block';
+    if (urlInput) {
+        urlInput.disabled = adapter !== 'localnode';
+        urlInput.style.opacity = adapter === 'localnode' ? '1' : '0.55';
+        if (adapter !== 'localnode' && !parseAgentNodeIdFromUrl(urlInput.value)) {
+            urlInput.value = '';
+        }
+    }
+    const modelStatus = document.getElementById('modelFetchStatus');
+    if (modelStatus && adapter !== 'localnode') {
+        modelStatus.innerText = '桌面客户端会使用账号后台模型或本机命令，不需要读取 5050 节点模型。';
+    }
+    if (adapter !== 'localnode') {
+        refreshDesktopClientStatus().catch(() => {});
+    }
+}
+
+function ensureRunnerDeviceId(adapter = 'desktop') {
+    const key = `niumaclaw_runner_device_id_${adapter}`;
+    let deviceId = localStorage.getItem(key);
+    if (!deviceId) {
+        deviceId = `${adapter}-` + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+        localStorage.setItem(key, deviceId);
+    }
+    return deviceId;
+}
+
+function normalizeDesktopAdapter(adapter) {
+    const value = String(adapter || '').toLowerCase();
+    if (value === 'hermes' || value === 'hermes_runner') return 'hermes_runner';
+    if (value === 'claude' || value === 'claude_code' || value === 'claude_runner') return 'claude_runner';
+    if (value === 'codex' || value === 'codex_runner') return 'codex_runner';
+    return 'codex_runner';
+}
+
+function getAgentNodeAdapter(node) {
+    const caps = node?.capabilities || {};
+    return normalizeDesktopAdapter(caps.adapter || caps.runner || node?.adapterType);
+}
+
+function getVisibleRunnerAdapter() {
+    return normalizeDesktopAdapter(
+        document.getElementById('recruitAdapterType')?.value ||
+        document.getElementById('desktopClientAdapter')?.value ||
+        'codex_runner'
+    );
+}
+
+function desktopAdapterDisplayName(adapter) {
+    const normalized = normalizeDesktopAdapter(adapter);
+    if (normalized === 'hermes_runner') return 'Hermes';
+    if (normalized === 'claude_runner') return 'Claude Code';
+    return 'Codex';
+}
+
+function buildRunnerCommand(token, adapter, workspace) {
+    const runnerAdapter = adapter === 'hermes_runner' ? 'hermes' : adapter === 'claude_runner' ? 'claude' : 'codex';
+    const safeWorkspace = workspace || 'E:\\your-workspace';
+    return `python agent_runner.py --server ${location.origin} --token ${token} --adapter ${runnerAdapter} --workspace "${safeWorkspace}"`;
+}
+
+async function copyRunnerCommand() {
+    const command = document.getElementById('runnerCommandBox')?.value || '';
+    if (!command.trim()) {
+        showAppDialog({ title: '还没有命令', message: '先点“生成”，系统会创建 Runner 节点并生成启动命令。', tone: 'warning' });
+        return;
+    }
+    try {
+        await navigator.clipboard.writeText(command);
+        showAppDialog({ title: '已复制', message: 'Runner 启动命令已复制。', tone: 'success' });
+    } catch {
+        showAppDialog({ title: '复制失败', message: '请手动复制命令。', tone: 'error' });
+    }
+}
+
+function openDesktopClientModal() {
+    if (!window.currentAccount?.authenticated) {
+        showAuthGate('请先登录，再下载当前账号专属的桌面客户端。');
+        return;
+    }
+    const adapter = document.getElementById('recruitAdapterType')?.value;
+    if (adapter && adapter !== 'localnode') {
+        document.getElementById('desktopClientAdapter').value = normalizeDesktopAdapter(adapter);
+    }
+    document.getElementById('desktopClientWorkspace').value = document.getElementById('recruitWorkspacePath')?.value || '';
+    document.getElementById('desktopClientModal').style.display = 'flex';
+    refreshDesktopClientStatus().catch(() => {});
+}
+
+async function requestDesktopClientPackage(adapter, workspace, options = {}) {
+    const normalized = normalizeDesktopAdapter(adapter);
+    const res = await fetch('/api/agent-nodes/client-package', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            adapterType: normalized,
+            workspacePath: workspace || '',
+            deviceId: ensureRunnerDeviceId(normalized),
+            deviceName: desktopAdapterDisplayName(normalized) + ' Desktop Client'
+        })
+    });
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || '生成桌面客户端失败');
+    }
+    const nodeId = res.headers.get('X-NiumaClaw-Node-Id') || '';
+    const blob = await res.blob();
+    if (options.download !== false) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `NiumaClaw-${desktopAdapterDisplayName(normalized).replace(/\s+/g, '-')}-Desktop-Agent.zip`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+    return { nodeId, blob };
+}
+
+async function requestDesktopClientInstaller(adapter, workspace, options = {}) {
+    const normalized = normalizeDesktopAdapter(adapter);
+    const params = new URLSearchParams({
+        adapterType: normalized,
+        workspacePath: workspace || ''
+    });
+    const url = `/api/agent-nodes/installer?${params.toString()}`;
+    if (options.download !== false) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'NiumaClaw-Desktop-Setup.exe';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+    return { nodeId: '', url };
+}
+
+async function downloadDesktopClient(adapterOverride = null, options = {}) {
+    if (!window.currentAccount?.authenticated) {
+        showAuthGate('请先登录，再下载当前账号专属的桌面客户端。');
+        return null;
+    }
+    const adapter = normalizeDesktopAdapter(adapterOverride || document.getElementById('desktopClientAdapter')?.value || getVisibleRunnerAdapter());
+    const workspace = options.workspace ?? document.getElementById('desktopClientWorkspace')?.value?.trim() ?? document.getElementById('recruitWorkspacePath')?.value?.trim() ?? '';
+    const modalStatus = document.getElementById('desktopClientStatus');
+    const recruitStatus = document.getElementById('runnerConnectStatus');
+    if (modalStatus) modalStatus.innerText = '正在唤起浏览器下载，请留意下载栏...';
+    if (recruitStatus && document.getElementById('recruitAdapterType')?.value !== 'localnode') recruitStatus.innerText = '正在唤起浏览器下载桌面端安装包...';
+    try {
+        const result = options.package === true
+            ? await requestDesktopClientPackage(adapter, workspace, options)
+            : await requestDesktopClientInstaller(adapter, workspace, options);
+        if (result?.nodeId) {
+            const nodeInput = document.getElementById('recruitAgentNodeId');
+            if (nodeInput && document.getElementById('recruitAdapterType')?.value === adapter) nodeInput.value = result.nodeId;
+        }
+        if (modalStatus) modalStatus.innerText = '下载已开始。如果浏览器拦截下载，请允许本网站下载文件。';
+        if (recruitStatus && document.getElementById('recruitAdapterType')?.value === adapter) {
+            recruitStatus.innerText = result.nodeId
+                ? `已准备桌面客户端节点 ${result.nodeId}。安装并启动后即可接任务。`
+                : '下载已开始。安装并登录桌面端后，回到这里刷新状态即可绑定员工。';
+        }
+        if (options.toast !== false) {
+            const desktopModal = document.getElementById('desktopClientModal');
+            if (desktopModal) desktopModal.style.display = 'none';
+            showAppDialog({ title: '下载已开始', message: '浏览器下载栏会显示 NiumaClaw-Desktop-Setup.exe。安装后在桌面端登录账号，再启动 Codex/Hermes Agent。', tone: 'success' });
+        }
+        return result;
+    } catch (err) {
+        if (modalStatus) modalStatus.innerText = err.message || String(err);
+        if (recruitStatus) recruitStatus.innerText = err.message || String(err);
+        showAppDialog({ title: '客户端下载失败', message: err.message || String(err), tone: 'error' });
+        return null;
+    }
+}
+
+async function downloadDesktopClientForRecruit() {
+    const adapter = getVisibleRunnerAdapter();
+    const workspace = document.getElementById('recruitWorkspacePath')?.value?.trim() || '';
+    return downloadDesktopClient(adapter, { workspace });
+}
+
+async function loadAgentNodes() {
+    const res = await fetch('/api/agent-nodes');
+    if (!res.ok) throw new Error('读取客户端状态失败');
+    return await res.json();
+}
+
+async function findBestDesktopAgentNode(adapter) {
+    const normalized = normalizeDesktopAdapter(adapter);
+    const nodes = await loadAgentNodes();
+    const candidates = (nodes || []).filter(node => getAgentNodeAdapter(node) === normalized);
+    return candidates.find(node => node.online) || candidates[0] || null;
+}
+
+async function refreshDesktopClientStatus() {
+    const adapter = getVisibleRunnerAdapter();
+    const status = document.getElementById('runnerConnectStatus');
+    const modalStatus = document.getElementById('desktopClientStatus');
+    try {
+        const node = await findBestDesktopAgentNode(adapter);
+        if (node?.id) {
+            const nodeInput = document.getElementById('recruitAgentNodeId');
+            if (nodeInput && document.getElementById('recruitAdapterType')?.value === adapter) nodeInput.value = node.id;
+            const text = node.online
+                ? `已发现在线客户端：${node.deviceName || '桌面客户端'}（节点 ${node.id}）`
+                : `已准备客户端节点 ${node.id}，等待本机启动。`;
+            if (status && document.getElementById('recruitAdapterType')?.value === adapter) status.innerText = text;
+            if (modalStatus) modalStatus.innerText = text;
+            return node;
+        }
+        const emptyText = '还没有在线客户端。点击“下载安装包”，双击安装后会自动启动。';
+        if (status) status.innerText = emptyText;
+        if (modalStatus) modalStatus.innerText = emptyText;
+        return null;
+    } catch (err) {
+        if (status) status.innerText = err.message || String(err);
+        if (modalStatus) modalStatus.innerText = err.message || String(err);
+        return null;
+    }
+}
+
+async function ensureDesktopAgentNodeForRecruit(adapter, workspace) {
+    const existingId = document.getElementById('recruitAgentNodeId')?.value?.trim();
+    if (existingId) return existingId;
+    const node = await findBestDesktopAgentNode(adapter).catch(() => null);
+    if (node?.id) {
+        document.getElementById('recruitAgentNodeId').value = node.id;
+        return String(node.id);
+    }
+    const result = await downloadDesktopClient(adapter, { workspace, toast: true });
+    return result?.nodeId || '';
+}
+
+async function registerLocalAgentNode() {
+    const status = document.getElementById('runnerConnectStatus');
+    const commandBox = document.getElementById('runnerCommandBox');
+    const adapter = document.getElementById('recruitAdapterType')?.value || 'codex_runner';
+    const workspace = document.getElementById('recruitWorkspacePath')?.value?.trim() || '';
+    if (status) status.innerText = '正在生成手动启动命令...';
+    try {
+        const res = await fetch('/api/agent-nodes/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                deviceId: ensureRunnerDeviceId(adapter),
+                deviceName: navigator.platform || 'Local desktop',
+                platform: navigator.userAgent,
+                version: 'web',
+                capabilities: { adapter, workspace, source: 'web-onboarding' }
+            })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || '生成 Runner 失败');
+        document.getElementById('recruitAgentNodeId').value = data.node?.id || '';
+        const command = buildRunnerCommand(data.token, adapter, workspace);
+        if (commandBox) commandBox.value = command;
+        if (status) status.innerText = '手动命令已生成。复制命令后可在本机终端运行。';
+        try {
+            await navigator.clipboard.writeText(command);
+            showAppDialog({ title: 'Runner 已生成', message: '启动命令已复制到剪贴板。首次使用请先下载 /agent_runner.py。', tone: 'success' });
+        } catch {
+            showAppDialog({ title: 'Runner 已生成', message: '请复制文本框里的启动命令，并下载 /agent_runner.py 后运行。', tone: 'success' });
+        }
+    } catch (err) {
+        if (status) status.innerText = err.message || String(err);
+        showAppDialog({ title: '生成失败', message: err.message || String(err), tone: 'error' });
+    }
+}
+
 async function clearAllMemory() {
-    if (!confirm('确定要清空全体员工的记忆吗？这会删除所有聊天和任务上下文。')) return;
+    if (!await showAppConfirm({
+        title: '清空全员记忆',
+        message: '确定要清空全体员工的记忆吗？这会删除所有聊天和任务上下文。',
+        confirmText: '清空',
+        buttonTone: 'error'
+    })) return;
     try {
         const res = await fetch('/api/clearall', { method: 'POST' });
         if (res.ok) {
@@ -10617,10 +12609,20 @@ function editEmployee() {
             document.getElementById('recruitDesc').value = nodeInfo.Description || nodeInfo.description || '';
             document.getElementById('recruitResume').value = nodeInfo.Resume || nodeInfo.resume || '';
             document.getElementById('recruitUrl').value = nodeInfo.Url || nodeInfo.url || '';
+            const adapterType = String(nodeInfo.AdapterType || nodeInfo.adapterType || '').toLowerCase() || (parseAgentNodeIdFromUrl(nodeInfo.Url || nodeInfo.url || '') ? 'codex_runner' : 'localnode');
+            const adapterSelect = document.getElementById('recruitAdapterType');
+            if (adapterSelect) adapterSelect.value = ['codex_runner', 'hermes_runner', 'claude_runner', 'localnode'].includes(adapterType) ? adapterType : 'localnode';
+            const adapterConfig = nodeInfo.AdapterConfig || nodeInfo.adapterConfig || {};
+            document.getElementById('recruitAgentNodeId').value = adapterConfig.nodeId || parseAgentNodeIdFromUrl(nodeInfo.Url || nodeInfo.url || '') || '';
+            document.getElementById('recruitWorkspacePath').value = adapterConfig.workspacePath || '';
+            document.getElementById('runnerCommandBox').value = '';
+            toggleRunnerFields();
 
             const savedIndex = nodeInfo.ModelIndex !== undefined ? nodeInfo.ModelIndex : (nodeInfo.modelIndex || 0);
             document.getElementById('recruitModelIndex').value = savedIndex;
-            fetchNodeModels(savedIndex);
+            if ((document.getElementById('recruitAdapterType')?.value || 'localnode') === 'localnode') {
+                fetchNodeModels(savedIndex);
+            }
 
             document.getElementById('recruitModal').querySelector('h3').innerText = '✏️ 编辑员工';
             document.getElementById('recruitModal').style.display = 'flex';
@@ -11328,8 +13330,19 @@ setInterval(async () => {
             const role = document.getElementById('recruitRole').value.trim() || '待认领';
             const desc = document.getElementById('recruitDesc').value.trim() || '新员工，等待分配工作。';
             const resume = document.getElementById('recruitResume').value.trim() || '';
-            const url = document.getElementById('recruitUrl').value.trim();
+            let url = document.getElementById('recruitUrl').value.trim();
             const modelIdx = parseInt(document.getElementById('recruitModelIndex').value, 10) || 0;
+            const adapterType = document.getElementById('recruitAdapterType')?.value || 'localnode';
+            let agentNodeId = document.getElementById('recruitAgentNodeId')?.value?.trim() || '';
+            const workspacePath = document.getElementById('recruitWorkspacePath')?.value?.trim() || '';
+            if (!name) return showAppDialog({ title: '缺少员工姓名', message: '请输入员工姓名。', tone: 'warning' });
+            if (adapterType !== 'localnode') {
+                agentNodeId = await ensureDesktopAgentNodeForRecruit(adapterType, workspacePath);
+                if (!agentNodeId) {
+                    return showAppDialog({ title: '需要桌面客户端', message: '请先下载并启动桌面客户端，再确认入职。', tone: 'warning' });
+                }
+                url = `agent-node://${agentNodeId}/${adapterType}`;
+            }
 
             if (!name) return alert('请输入员工姓名。');
 
@@ -11345,13 +13358,25 @@ setInterval(async () => {
                     delete cfg.PeerNodes[originalEditName];
                 }
 
-                cfg.PeerNodes[name] = {
+                const nodePayload = {
                     Url: url,
                     Role: role,
                     Description: desc,
                     Resume: resume,
                     ModelIndex: modelIdx
                 };
+                if (adapterType !== 'localnode') {
+                    nodePayload.AdapterType = adapterType;
+                    nodePayload.AdapterConfig = {
+                        nodeId: Number(agentNodeId),
+                        adapterType,
+                        workspacePath
+                    };
+                    nodePayload.Capabilities = ['chat', 'tasks', 'terminal', 'files', 'code', 'runner'];
+                } else {
+                    nodePayload.AdapterType = 'localnode';
+                }
+                cfg.PeerNodes[name] = nodePayload;
                 window.teamConfig = cfg;
                 await refreshControlPlaneOverview();
 
@@ -11360,6 +13385,18 @@ setInterval(async () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(cfg)
                 });
+                if (adapterType !== 'localnode') {
+                    await fetch('/api/agent-nodes/bind', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            employeeName: name,
+                            nodeId: Number(agentNodeId),
+                            adapterType,
+                            workspacePath
+                        })
+                    }).catch(err => console.warn('Runner bind failed', err));
+                }
             } catch (e) {
                 console.error('保存员工配置失败：', e);
             }
@@ -11370,7 +13407,12 @@ setInterval(async () => {
         }
 
         async function bankruptcy() {
-            if (!confirm('确定要执行一键破产吗？这会清空当前公司和团队配置，且不可恢复。')) return;
+            if (!await showAppConfirm({
+                title: '一键破产',
+                message: '确定要执行一键破产吗？这会清空当前公司和团队配置，且不可恢复。',
+                confirmText: '确认破产',
+                buttonTone: 'error'
+            })) return;
             try {
                 const res = await fetch('/api/bankruptcy', { method: 'POST' });
                 if (res.ok) {
@@ -11384,7 +13426,12 @@ setInterval(async () => {
 
         async function fireEmployee() {
             if (!currentTargetDesk || !currentTargetName) return;
-            if (!confirm(`确定要开除 ${currentTargetName} 吗？该员工会从团队配置中移除。`)) return;
+            if (!await showAppConfirm({
+                title: '开除员工',
+                message: `确定要开除 ${currentTargetName} 吗？该员工会从团队配置中移除。`,
+                confirmText: '开除',
+                buttonTone: 'error'
+            })) return;
 
             try {
                 let res = await fetch('/api/config');
@@ -11421,7 +13468,12 @@ setInterval(async () => {
 
         async function clearEmployeeMemory() {
             if (!currentTargetDesk || !currentTargetName) return;
-            if (!confirm(`确定要清空 ${currentTargetName} 的记忆吗？这会删除 ta 的聊天和任务上下文。`)) return;
+            if (!await showAppConfirm({
+                title: '清空员工记忆',
+                message: `确定要清空 ${currentTargetName} 的记忆吗？这会删除 ta 的聊天和任务上下文。`,
+                confirmText: '清空',
+                buttonTone: 'error'
+            })) return;
 
             try {
                 const res = await fetch('/api/clear', {
