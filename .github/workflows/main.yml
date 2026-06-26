@@ -44,20 +44,29 @@ jobs:
         run: |
           sudo apt-get update
           # 新增 lld，解决默认 bfd 链接器跨平台水土不服导致 Exit Code 1 的问题
-          sudo apt-get install -y clang zlib1g-dev build-essential 7zip lld
+          sudo apt-get install -y clang zlib1g-dev build-essential lld
+          sudo apt-get install -y 7zip || sudo apt-get install -y p7zip-full
           
           # 针对 linux-arm (32位) 配置交叉编译工具链和正确的底层镜像源
           if [ "${{ matrix.rid }}" == "linux-arm" ]; then
-            # 1. 更强大的正则修复：捕获所有不包含 [arch=...] 标签的 deb 行
-            sudo sed -i -E 's/^deb[[:space:]]+([^\[])/deb [arch=amd64,i386] \1/g' /etc/apt/sources.list
+            # 1. Restrict default Ubuntu sources to native architectures before enabling armhf.
+            if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+              sudo perl -0pi -e 's/(Types:\s*deb\n)(?!Architectures:)/${1}Architectures: amd64 i386\n/g' /etc/apt/sources.list.d/ubuntu.sources
+            fi
+            sudo sed -i -E 's/^deb[[:space:]]+([^\[])/deb [arch=amd64,i386] \1/g' /etc/apt/sources.list 2>/dev/null || true
             sudo sed -i -E 's/^deb[[:space:]]+([^\[])/deb [arch=amd64,i386] \1/g' /etc/apt/sources.list.d/*.list 2>/dev/null || true
-            
-            # 2. 写入 armhf 专属的 ports 源 (补全 updates 和 security 防依赖版本断层)
-            echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/armhf.list
-            echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/armhf.list
-            echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/armhf.list
-            
-            # 3. 启用架构并重新更新
+
+            # 2. Add the armhf-only ports source in deb822 format for current runner images.
+            {
+              echo "Types: deb"
+              echo "URIs: http://ports.ubuntu.com/ubuntu-ports/"
+              echo "Suites: jammy jammy-updates jammy-security"
+              echo "Components: main restricted universe multiverse"
+              echo "Architectures: armhf"
+              echo "Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg"
+            } | sudo tee /etc/apt/sources.list.d/armhf.sources
+
+            # 3. Enable the architecture and update with the split source set.
             sudo dpkg --add-architecture armhf
             sudo apt-get update
             sudo apt-get install -y gcc-arm-linux-gnueabihf zlib1g-dev:armhf
