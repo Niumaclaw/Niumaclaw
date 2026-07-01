@@ -1648,7 +1648,7 @@
             <div style="display:grid; grid-template-columns:1fr; gap:10px;">
                 <label style="font-size:12px; color:#64748b; font-weight:800;">桌面客户端</label>
                 <div style="padding:12px 14px; border:1px solid #dbeafe; border-radius:12px; background:#eff6ff; color:#1e3a8a; font-size:13px; line-height:1.6;">
-                    Windows 可下载安装包；macOS 下载 DMG 安装镜像，打开后接入 Codex、Hermes、Claude Code。
+                    Windows 可下载安装包；macOS 下载 DMG 安装镜像。Mac 首次打开请按住 Control 或右键点击 NiumaClaw Agent，再选择“打开”。
                 </div>
                 <select id="desktopClientAdapter" style="display:none; width:100%; padding:11px; border:1px solid #cbd5e1; border-radius:10px; outline:none;">
                     <option value="codex_runner">Codex 桌面客户端</option>
@@ -1657,7 +1657,7 @@
                 </select>
                 <label style="font-size:12px; color:#64748b; font-weight:800;">默认工作区（可选）</label>
                 <input id="desktopClientWorkspace" placeholder="留空则使用用户目录下的 NiumaClawWorkspace" style="box-sizing:border-box; width:100%; padding:11px; border:1px solid #cbd5e1; border-radius:10px; outline:none;">
-                <div id="desktopClientStatus" style="min-height:20px; color:#64748b; font-size:13px;">Windows 下载安装包；macOS 下载 DMG 安装镜像并打开。</div>
+                <div id="desktopClientStatus" style="min-height:20px; color:#64748b; font-size:13px;">Windows 下载安装包；macOS 下载 DMG 后首次需右键打开。</div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                     <button id="desktopClientDownloadBtn" onclick="downloadDesktopClient(null, { platform: 'windows', package: false })" style="border:0; border-radius:12px; padding:12px; background:#0e7490; color:#fff; font-weight:900; cursor:pointer;">下载 Windows 安装包</button>
                     <button onclick="downloadMacDesktopClient()" style="border:0; border-radius:12px; padding:12px; background:#172033; color:#fff; font-weight:900; cursor:pointer;">下载 macOS DMG</button>
@@ -12481,7 +12481,7 @@ async function downloadDesktopClient(adapterOverride = null, options = {}) {
             const desktopModal = document.getElementById('desktopClientModal');
             if (desktopModal) desktopModal.style.display = 'none';
             const message = useMacClient
-                ? '浏览器下载栏会显示 NiumaClaw macOS Agent DMG。打开镜像后双击 NiumaClaw Agent.app 即可启动。'
+                ? '浏览器下载栏会显示 NiumaClaw macOS Agent DMG。打开镜像后请按住 Control 或右键点击 NiumaClaw Agent，再选择“打开”。普通双击会被 macOS Gatekeeper 拦截。'
                 : (usePackage
                     ? '浏览器下载栏会显示 NiumaClaw 桌面客户端 zip。解压后在终端执行 chmod +x start-niumaclaw-agent.sh && ./start-niumaclaw-agent.sh。'
                     : '浏览器下载栏会显示 NiumaClaw-Desktop-Setup.exe。安装后在桌面端登录账号，再启动 Codex/Hermes Agent。');
@@ -12536,7 +12536,7 @@ async function refreshDesktopClientStatus() {
             if (modalStatus) modalStatus.innerText = text;
             return node;
         }
-        const emptyText = '还没有在线客户端。Windows 点击下载安装包；macOS 点击下载客户端并打开。';
+        const emptyText = '还没有在线客户端。Windows 点击下载安装包；macOS 下载 DMG 后首次需右键打开。';
         if (status) status.innerText = emptyText;
         if (modalStatus) modalStatus.innerText = emptyText;
         return null;

@@ -1,5 +1,13 @@
 # Release Notes
 
+## v1.0.6 - macOS Gatekeeper First Launch Help
+
+### Highlights
+
+- macOS DMG 内新增“首次打开说明”，提示使用 Control/右键打开未公证客户端。
+- 页面下载提示同步说明 macOS Gatekeeper 行为，避免用户普通双击后被系统拦截却不知道下一步。
+- 调整 macOS DMG 模板结构，将动态下载配置放在 app 外部，给后续 Developer ID 签名与 notarization 留出空间。
+
 ## v1.0.5 - Public Download URL Fix
 
 ### Highlights

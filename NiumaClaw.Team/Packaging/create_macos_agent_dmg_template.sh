@@ -11,7 +11,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-APP_DIR="$WORK_DIR/src/NiumaClaw Agent.app"
+DMG_SRC_DIR="$WORK_DIR/src"
+APP_DIR="$DMG_SRC_DIR/NiumaClaw Agent.app"
+CONFIG_FILE="$DMG_SRC_DIR/NiumaClaw Agent.config.b64"
+README_FILE="$DMG_SRC_DIR/首次打开说明.txt"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources" "$OUTPUT_DIR"
 
 cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
@@ -45,13 +48,21 @@ python3 - "$APP_DIR/Contents/MacOS/NiumaClaw Agent" <<'PY'
 from pathlib import Path
 import sys
 
-capacity = 65536
 script = """#!/bin/bash
 set -euo pipefail
 
-CONFIG_B64="__NIUMACLAW_CONFIG_B64_START__""" + ("#" * capacity) + """__NIUMACLAW_CONFIG_B64_END__"
-CONFIG_B64="${CONFIG_B64#__NIUMACLAW_CONFIG_B64_START__}"
-CONFIG_B64="${CONFIG_B64%__NIUMACLAW_CONFIG_B64_END__}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="$SCRIPT_DIR/../../../NiumaClaw Agent.config.b64"
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  /usr/bin/osascript -e 'display dialog "NiumaClaw Agent configuration is missing. Please open the app from its downloaded DMG." buttons {"OK"} default button "OK" with title "NiumaClaw Agent"' >/dev/null 2>&1 || true
+  exit 1
+fi
+
+CONFIG_B64="$(tr -d '\\r\\n[:space:]' < "$CONFIG_FILE")"
+START_MARKER='__NIUMACLAW_CONFIG_B64_''START__'
+END_MARKER='__NIUMACLAW_CONFIG_B64_''END__'
+CONFIG_B64="${CONFIG_B64#$START_MARKER}"
+CONFIG_B64="${CONFIG_B64%$END_MARKER}"
 CONFIG_B64="${CONFIG_B64%%#*}"
 
 if ! command -v python3 >/dev/null 2>&1; then
@@ -167,9 +178,45 @@ path.write_text(script, encoding="utf-8")
 path.chmod(0o755)
 PY
 
+python3 - "$CONFIG_FILE" <<'PY'
+from pathlib import Path
+import sys
+
+capacity = 65536
+path = Path(sys.argv[1])
+path.write_text(
+    "__NIUMACLAW_CONFIG_B64_START__" + ("#" * capacity) + "__NIUMACLAW_CONFIG_B64_END__",
+    encoding="ascii",
+)
+path.chmod(0o644)
+PY
+
+cat > "$README_FILE" <<'TXT'
+NiumaClaw Agent 首次打开说明
+
+如果双击 NiumaClaw Agent 时看到“Apple 无法验证 NiumaClaw Agent 是否包含可能危害 Mac 安全或泄露隐私的恶意软件”，这是 macOS Gatekeeper 对未公证应用的默认拦截。
+
+首次启动请这样打开：
+
+1. 按住 Control 键点击 NiumaClaw Agent，或右键点击 NiumaClaw Agent。
+2. 选择“打开”。
+3. 在弹出的确认框里再次选择“打开”。
+
+启动后客户端会打开 Terminal，并把运行文件安装到：
+~/Library/Application Support/NiumaClawAgent
+
+请从本 DMG 内直接打开 NiumaClaw Agent，不要只把 app 单独拖走；此下载包包含账号专属配置文件。
+
+说明：要让 macOS 普通双击完全无拦截，需要使用 Apple Developer ID 签名并完成 notarization。
+TXT
+
+if command -v codesign >/dev/null 2>&1; then
+  codesign --force --deep --sign - "$APP_DIR" >/dev/null 2>&1 || true
+fi
+
 hdiutil create \
   -volname "NiumaClaw Agent" \
-  -srcfolder "$WORK_DIR/src" \
+  -srcfolder "$DMG_SRC_DIR" \
   -ov \
   -fs HFS+ \
   -format UDRW \
