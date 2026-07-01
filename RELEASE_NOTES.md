@@ -1,5 +1,14 @@
 # Release Notes
 
+## v1.0.2 - macOS Desktop Client
+
+### Highlights
+
+- 下载客户端弹窗新增“下载 macOS 客户端”入口，不再只展示 Windows 安装包。
+- macOS 客户端下载账号专属 zip，内含 `start-niumaclaw-agent.command`、`start-niumaclaw-agent.sh`、`agent_runner.py` 和 `client.json`。
+- zip 内 macOS/Linux 启动脚本写入可执行权限，解压后可直接双击 `.command` 或在终端运行。
+- 在招聘员工流程中，macOS/Linux 浏览器会默认下载跨平台客户端包，Windows 继续下载安装包。
+
 ## v1.0.1 - Online Server Sync
 
 这个版本把 `niuma.wiki` 当前线上发布包作为最新版本同步回 GitHub 和本地源码。

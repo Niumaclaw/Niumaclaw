@@ -827,9 +827,14 @@ internal class Program
 		return array;
 	}
 
-	private static void AddZipTextEntry(ZipArchive archive, string name, string content)
+	private static void AddZipTextEntry(ZipArchive archive, string name, string content, int? unixMode = null)
 	{
-		using Stream stream = archive.CreateEntry(name, CompressionLevel.Fastest).Open();
+		ZipArchiveEntry entry = archive.CreateEntry(name, CompressionLevel.Fastest);
+		if (unixMode.HasValue)
+		{
+			entry.ExternalAttributes = unixMode.Value << 16;
+		}
+		using Stream stream = entry.Open();
 		using StreamWriter streamWriter = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 		streamWriter.Write(content);
 	}
@@ -921,13 +926,14 @@ internal class Program
 		string content3 = $"@echo off\nchcp 65001 >nul\nsetlocal\ncd /d \"%~dp0\"\nset \"NIUMACLAW_SERVER={server}\"\nset \"NIUMACLAW_TOKEN={token}\"\nset \"NIUMACLAW_ADAPTER={commandAdapter}\"\nset \"NIUMACLAW_WORKSPACE={windowsWorkspace}\"\nif not exist \"%NIUMACLAW_WORKSPACE%\" mkdir \"%NIUMACLAW_WORKSPACE%\"\necho NiumaClaw 桌面客户端已启动\necho 节点 ID: {nodeId}\necho 工作区: %NIUMACLAW_WORKSPACE%\necho.\nwhere py >nul 2>nul\nif %ERRORLEVEL% EQU 0 (\n  py -3 agent_runner.py --server \"%NIUMACLAW_SERVER%\" --token \"%NIUMACLAW_TOKEN%\" --adapter \"%NIUMACLAW_ADAPTER%\" --workspace \"%NIUMACLAW_WORKSPACE%\"\n) else (\n  python agent_runner.py --server \"%NIUMACLAW_SERVER%\" --token \"%NIUMACLAW_TOKEN%\" --adapter \"%NIUMACLAW_ADAPTER%\" --workspace \"%NIUMACLAW_WORKSPACE%\"\n)\necho.\necho 客户端已退出。\npause";
 		string content4 = $"$ErrorActionPreference = \"Stop\"\n$root = Split-Path -Parent $MyInvocation.MyCommand.Path\nSet-Location $root\n$server = \"{server}\"\n$token = \"{token}\"\n$adapter = \"{commandAdapter}\"\n$workspace = \"{powershellWorkspace}\"\nNew-Item -ItemType Directory -Path $workspace -Force | Out-Null\nWrite-Host \"NiumaClaw 桌面客户端已启动\"\nWrite-Host \"节点 ID: {nodeId}\"\nWrite-Host \"工作区: $workspace\"\npython agent_runner.py --server $server --token $token --adapter $adapter --workspace $workspace\nRead-Host \"按 Enter 退出\"";
 		string content5 = $"#!/usr/bin/env bash\nset -euo pipefail\ncd \"$(dirname \"$0\")\"\nSERVER=\"{server}\"\nTOKEN=\"{token}\"\nADAPTER=\"{commandAdapter}\"\nWORKSPACE=\"{shellWorkspace}\"\nmkdir -p \"$WORKSPACE\"\necho \"NiumaClaw desktop client started\"\necho \"Node ID: {nodeId}\"\necho \"Workspace: $WORKSPACE\"\npython3 agent_runner.py --server \"$SERVER\" --token \"$TOKEN\" --adapter \"$ADAPTER\" --workspace \"$WORKSPACE\"";
-		string content6 = $"NiumaClaw 桌面客户端\n\nWindows:\n1. 解压本 zip。\n2. 双击“启动 NiumaClaw Agent.cmd”。\n3. 回到网页招聘员工，接入方式选择“桌面客户端 Codex”或“桌面客户端 Hermes”，然后确认入职。\n\nmacOS / Linux:\n1. 解压后运行：chmod +x start-niumaclaw-agent.sh\n2. 执行：./start-niumaclaw-agent.sh\n\n节点 ID: {nodeId}\n客户端: {deviceName}\n服务地址: {server}";
+		string content6 = $"NiumaClaw 桌面客户端\n\nWindows:\n1. 解压本 zip。\n2. 双击“启动 NiumaClaw Agent.cmd”。\n3. 回到网页招聘员工，接入方式选择“桌面客户端 Codex”或“桌面客户端 Hermes”，然后确认入职。\n\nmacOS:\n1. 解压本 zip。\n2. 双击 start-niumaclaw-agent.command；如果系统拦截，请在终端执行：chmod +x start-niumaclaw-agent.command && ./start-niumaclaw-agent.command\n3. 需要本机已安装 Python 3，并确认 Codex/Hermes/Claude Code 命令可在终端运行。\n\nLinux:\n1. 解压后运行：chmod +x start-niumaclaw-agent.sh\n2. 执行：./start-niumaclaw-agent.sh\n\n节点 ID: {nodeId}\n客户端: {deviceName}\n服务地址: {server}";
 		using MemoryStream memoryStream = new MemoryStream();
 		using (ZipArchive archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true))
 		{
 			AddZipTextEntry(archive, "启动 NiumaClaw Agent.cmd", content3);
 			AddZipTextEntry(archive, "start-niumaclaw-agent.ps1", content4);
-			AddZipTextEntry(archive, "start-niumaclaw-agent.sh", content5);
+			AddZipTextEntry(archive, "start-niumaclaw-agent.command", content5, 493);
+			AddZipTextEntry(archive, "start-niumaclaw-agent.sh", content5, 493);
 			AddZipTextEntry(archive, "agent_runner.py", content);
 			AddZipTextEntry(archive, "client.json", content2);
 			AddZipTextEntry(archive, "README.txt", content6);
