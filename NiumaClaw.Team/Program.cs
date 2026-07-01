@@ -816,6 +816,29 @@ internal class Program
 		return (!string.IsNullOrWhiteSpace(text)) ? (await File.ReadAllBytesAsync(text)) : null;
 	}
 
+	private const string MacDesktopClientDmgTemplateFileName = "NiumaClaw-macOS-Agent-template.dmg";
+
+	private const string MacDesktopClientDmgConfigStart = "__NIUMACLAW_CONFIG_B64_START__";
+
+	private const string MacDesktopClientDmgConfigEnd = "__NIUMACLAW_CONFIG_B64_END__";
+
+	private static async Task<byte[]> LoadMacDesktopClientDmgTemplateAsync()
+	{
+		string? text = new string[5]
+		{
+			Path.Combine(AppContext.BaseDirectory, "downloads", MacDesktopClientDmgTemplateFileName),
+			Path.Combine(Environment.CurrentDirectory, "downloads", MacDesktopClientDmgTemplateFileName),
+			Path.Combine(Environment.CurrentDirectory, "NiumaClaw.Team", "downloads", MacDesktopClientDmgTemplateFileName),
+			Path.Combine(GetWorkspaceRootPath(), "downloads", MacDesktopClientDmgTemplateFileName),
+			Path.Combine(GetWorkspaceRootPath(), "NiumaClaw.Team", "downloads", MacDesktopClientDmgTemplateFileName)
+		}.FirstOrDefault(File.Exists);
+		if (string.IsNullOrWhiteSpace(text))
+		{
+			throw new FileNotFoundException("macOS client DMG template is missing from the deployment.", MacDesktopClientDmgTemplateFileName);
+		}
+		return await File.ReadAllBytesAsync(text);
+	}
+
 	private static byte[] AppendDesktopLaunchConfigToExe(byte[] installer, string server, string adapterType, string workspacePath)
 	{
 		string s = "{\"serverUrl\":" + JsonSerializer.Serialize(server, AppJsonContext.Default.String) + ",\"adapterType\":" + JsonSerializer.Serialize(adapterType, AppJsonContext.Default.String) + ",\"workspacePath\":" + JsonSerializer.Serialize(workspacePath ?? string.Empty, AppJsonContext.Default.String) + "}";
@@ -920,51 +943,62 @@ internal class Program
 		return Encoding.UTF8.GetBytes(s);
 	}
 
-	private static async Task<byte[]> BuildAgentMacDesktopClientCommandAsync(string server, string token, long nodeId, string adapterType, string workspacePath, string deviceName)
+	private static async Task<byte[]> BuildAgentMacDesktopClientDmgAsync(string server, string token, long nodeId, string adapterType, string workspacePath, string deviceName)
 	{
 		string commandAdapter = RunnerCommandAdapter(adapterType);
-		string defaultWorkspace = string.IsNullOrWhiteSpace(workspacePath) ? "$HOME/NiumaClawWorkspace" : workspacePath.Trim();
 		string agentRunner = await LoadAgentRunnerScriptAsync();
-		string clientJson = "{\n  \"server\": " + JsonSerializer.Serialize(server, AppJsonContext.Default.String) + ",\n" + $"  \"nodeId\": {nodeId},\n" + "  \"adapter\": " + JsonSerializer.Serialize(commandAdapter, AppJsonContext.Default.String) + ",\n  \"adapterType\": " + JsonSerializer.Serialize(adapterType, AppJsonContext.Default.String) + ",\n  \"deviceName\": " + JsonSerializer.Serialize(deviceName, AppJsonContext.Default.String) + "\n}\n";
-		StringBuilder stringBuilder = new StringBuilder();
-		stringBuilder.AppendLine("#!/bin/bash");
-		stringBuilder.AppendLine("set -euo pipefail");
-		stringBuilder.AppendLine("INSTALL_DIR=\"$HOME/Library/Application Support/NiumaClawAgent\"");
-		stringBuilder.AppendLine("RUNNER_FILE=\"$INSTALL_DIR/agent_runner.py\"");
-		stringBuilder.AppendLine("CLIENT_FILE=\"$INSTALL_DIR/client.json\"");
-		if (string.IsNullOrWhiteSpace(workspacePath))
+		string normalizedWorkspace = workspacePath?.Trim() ?? string.Empty;
+		string configJson = "{\n  \"server\": " + JsonSerializer.Serialize(server, AppJsonContext.Default.String) + ",\n" + $"  \"nodeId\": {nodeId},\n" + "  \"token\": " + JsonSerializer.Serialize(token, AppJsonContext.Default.String) + ",\n  \"adapter\": " + JsonSerializer.Serialize(commandAdapter, AppJsonContext.Default.String) + ",\n  \"adapterType\": " + JsonSerializer.Serialize(adapterType, AppJsonContext.Default.String) + ",\n  \"deviceName\": " + JsonSerializer.Serialize(deviceName, AppJsonContext.Default.String) + ",\n  \"workspace\": " + JsonSerializer.Serialize(normalizedWorkspace, AppJsonContext.Default.String) + ",\n  \"runner\": " + JsonSerializer.Serialize(Base64Utf8(agentRunner), AppJsonContext.Default.String) + "\n}\n";
+		byte[] template = await LoadMacDesktopClientDmgTemplateAsync();
+		return PatchMacDesktopClientDmgConfig(template, Base64Utf8(configJson));
+	}
+
+	private static byte[] PatchMacDesktopClientDmgConfig(byte[] template, string configBase64)
+	{
+		byte[] startMarker = Encoding.ASCII.GetBytes(MacDesktopClientDmgConfigStart);
+		byte[] endMarker = Encoding.ASCII.GetBytes(MacDesktopClientDmgConfigEnd);
+		int start = IndexOfBytes(template, startMarker, 0);
+		if (start < 0)
 		{
-			stringBuilder.AppendLine("DEFAULT_WORKSPACE=\"$HOME/NiumaClawWorkspace\"");
+			throw new InvalidOperationException("macOS client DMG template is missing the config start marker.");
 		}
-		else
+		int payloadStart = start + startMarker.Length;
+		int payloadEnd = IndexOfBytes(template, endMarker, payloadStart);
+		if (payloadEnd < 0)
 		{
-			stringBuilder.AppendLine("DEFAULT_WORKSPACE=" + ShSingleQuote(defaultWorkspace));
+			throw new InvalidOperationException("macOS client DMG template is missing the config end marker.");
 		}
-		stringBuilder.AppendLine("WORKSPACE=\"${NIUMACLAW_WORKSPACE:-$DEFAULT_WORKSPACE}\"");
-		stringBuilder.AppendLine("mkdir -p \"$INSTALL_DIR\" \"$WORKSPACE\"");
-		stringBuilder.AppendLine("export NIUMACLAW_RUNNER_B64=" + ShSingleQuote(Base64Utf8(agentRunner)));
-		stringBuilder.AppendLine("export NIUMACLAW_CLIENT_B64=" + ShSingleQuote(Base64Utf8(clientJson)));
-		stringBuilder.AppendLine("if ! command -v python3 >/dev/null 2>&1; then");
-		stringBuilder.AppendLine("  echo \"未检测到 Python 3。请先安装 Python 3，然后重新打开本客户端。\"");
-		stringBuilder.AppendLine("  read -r -p \"按 Enter 退出...\" _");
-		stringBuilder.AppendLine("  exit 1");
-		stringBuilder.AppendLine("fi");
-		stringBuilder.AppendLine("python3 - \"$RUNNER_FILE\" \"$CLIENT_FILE\" <<'PY'");
-		stringBuilder.AppendLine("import base64");
-		stringBuilder.AppendLine("import os");
-		stringBuilder.AppendLine("import pathlib");
-		stringBuilder.AppendLine("import sys");
-		stringBuilder.AppendLine("pathlib.Path(sys.argv[1]).write_bytes(base64.b64decode(os.environ['NIUMACLAW_RUNNER_B64']))");
-		stringBuilder.AppendLine("pathlib.Path(sys.argv[2]).write_bytes(base64.b64decode(os.environ['NIUMACLAW_CLIENT_B64']))");
-		stringBuilder.AppendLine("os.chmod(sys.argv[2], 0o600)");
-		stringBuilder.AppendLine("PY");
-		stringBuilder.AppendLine("echo \"NiumaClaw macOS 客户端已启动\"");
-		stringBuilder.AppendLine($"echo \"节点 ID: {nodeId}\"");
-		stringBuilder.AppendLine("echo \"工作区: $WORKSPACE\"");
-		stringBuilder.AppendLine("echo \"客户端文件: $RUNNER_FILE\"");
-		stringBuilder.AppendLine("echo");
-		stringBuilder.AppendLine("exec python3 \"$RUNNER_FILE\" --server " + ShSingleQuote(server) + " --token " + ShSingleQuote(token) + " --adapter " + ShSingleQuote(commandAdapter) + " --workspace \"$WORKSPACE\"");
-		return Encoding.UTF8.GetBytes(stringBuilder.ToString());
+		int capacity = payloadEnd - payloadStart;
+		byte[] payload = Encoding.ASCII.GetBytes(configBase64);
+		if (payload.Length > capacity)
+		{
+			throw new InvalidOperationException($"macOS client config is too large for the DMG template ({payload.Length}/{capacity} bytes).");
+		}
+		byte[] output = (byte[])template.Clone();
+		Array.Fill<byte>(output, (byte)'#', payloadStart, capacity);
+		Buffer.BlockCopy(payload, 0, output, payloadStart, payload.Length);
+		return output;
+	}
+
+	private static int IndexOfBytes(byte[] source, byte[] value, int startIndex)
+	{
+		if (value.Length == 0)
+		{
+			return startIndex;
+		}
+		for (int i = Math.Max(0, startIndex); i <= source.Length - value.Length; i++)
+		{
+			int j = 0;
+			while (j < value.Length && source[i + j] == value[j])
+			{
+				j++;
+			}
+			if (j == value.Length)
+			{
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	private static async Task<byte[]> BuildAgentDesktopClientZipAsync(string server, string token, long nodeId, string adapterType, string workspacePath, string deviceName)
@@ -978,7 +1012,7 @@ internal class Program
 		string content3 = $"@echo off\nchcp 65001 >nul\nsetlocal\ncd /d \"%~dp0\"\nset \"NIUMACLAW_SERVER={server}\"\nset \"NIUMACLAW_TOKEN={token}\"\nset \"NIUMACLAW_ADAPTER={commandAdapter}\"\nset \"NIUMACLAW_WORKSPACE={windowsWorkspace}\"\nif not exist \"%NIUMACLAW_WORKSPACE%\" mkdir \"%NIUMACLAW_WORKSPACE%\"\necho NiumaClaw 桌面客户端已启动\necho 节点 ID: {nodeId}\necho 工作区: %NIUMACLAW_WORKSPACE%\necho.\nwhere py >nul 2>nul\nif %ERRORLEVEL% EQU 0 (\n  py -3 agent_runner.py --server \"%NIUMACLAW_SERVER%\" --token \"%NIUMACLAW_TOKEN%\" --adapter \"%NIUMACLAW_ADAPTER%\" --workspace \"%NIUMACLAW_WORKSPACE%\"\n) else (\n  python agent_runner.py --server \"%NIUMACLAW_SERVER%\" --token \"%NIUMACLAW_TOKEN%\" --adapter \"%NIUMACLAW_ADAPTER%\" --workspace \"%NIUMACLAW_WORKSPACE%\"\n)\necho.\necho 客户端已退出。\npause";
 		string content4 = $"$ErrorActionPreference = \"Stop\"\n$root = Split-Path -Parent $MyInvocation.MyCommand.Path\nSet-Location $root\n$server = \"{server}\"\n$token = \"{token}\"\n$adapter = \"{commandAdapter}\"\n$workspace = \"{powershellWorkspace}\"\nNew-Item -ItemType Directory -Path $workspace -Force | Out-Null\nWrite-Host \"NiumaClaw 桌面客户端已启动\"\nWrite-Host \"节点 ID: {nodeId}\"\nWrite-Host \"工作区: $workspace\"\npython agent_runner.py --server $server --token $token --adapter $adapter --workspace $workspace\nRead-Host \"按 Enter 退出\"";
 		string content5 = $"#!/usr/bin/env bash\nset -euo pipefail\ncd \"$(dirname \"$0\")\"\nSERVER=\"{server}\"\nTOKEN=\"{token}\"\nADAPTER=\"{commandAdapter}\"\nWORKSPACE=\"{shellWorkspace}\"\nmkdir -p \"$WORKSPACE\"\necho \"NiumaClaw desktop client started\"\necho \"Node ID: {nodeId}\"\necho \"Workspace: $WORKSPACE\"\npython3 agent_runner.py --server \"$SERVER\" --token \"$TOKEN\" --adapter \"$ADAPTER\" --workspace \"$WORKSPACE\"";
-		string content6 = $"NiumaClaw 桌面客户端\n\nWindows:\n1. 解压本 zip。\n2. 双击“启动 NiumaClaw Agent.cmd”。\n3. 回到网页招聘员工，接入方式选择“桌面客户端 Codex”或“桌面客户端 Hermes”，然后确认入职。\n\nLinux:\n1. 解压后运行：chmod +x start-niumaclaw-agent.sh\n2. 执行：./start-niumaclaw-agent.sh\n\nmacOS 请在网页中点击“下载 macOS 客户端”，直接下载 .command 客户端文件。\n\n节点 ID: {nodeId}\n客户端: {deviceName}\n服务地址: {server}";
+		string content6 = $"NiumaClaw 桌面客户端\n\nWindows:\n1. 解压本 zip。\n2. 双击“启动 NiumaClaw Agent.cmd”。\n3. 回到网页招聘员工，接入方式选择“桌面客户端 Codex”或“桌面客户端 Hermes”，然后确认入职。\n\nLinux:\n1. 解压后运行：chmod +x start-niumaclaw-agent.sh\n2. 执行：./start-niumaclaw-agent.sh\n\nmacOS 请在网页中点击“下载 macOS 客户端”，直接下载 DMG 安装镜像。\n\n节点 ID: {nodeId}\n客户端: {deviceName}\n服务地址: {server}";
 		using MemoryStream memoryStream = new MemoryStream();
 		using (ZipArchive archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true))
 		{
@@ -1801,16 +1835,16 @@ internal class Program
 				Capabilities = capabilities
 			});
 			string text4 = (string.IsNullOrWhiteSpace(req.Headers["Host"]) ? req.UserHostName : req.Headers["Host"]);
-			byte[] array = await BuildAgentMacDesktopClientCommandAsync((req.Url?.Scheme ?? "http") + "://" + text4, registered.Token, registered.NodeId, adapterType, workspacePath, deviceName);
+			byte[] array = await BuildAgentMacDesktopClientDmgAsync((req.Url?.Scheme ?? "http") + "://" + text4, registered.Token, registered.NodeId, adapterType, workspacePath, deviceName);
 			string commandName = RunnerCommandAdapter(adapterType) switch
 			{
 				"hermes" => "Hermes",
 				"claude" => "Claude-Code",
 				_ => "Codex",
 			};
-			res.ContentType = "application/octet-stream";
+			res.ContentType = "application/x-apple-diskimage";
 			res.Headers["Cache-Control"] = "no-store, no-cache, max-age=0";
-			res.Headers["Content-Disposition"] = $"attachment; filename=\"NiumaClaw-{commandName}-macOS-Agent.command\"";
+			res.Headers["Content-Disposition"] = $"attachment; filename=\"NiumaClaw-{commandName}-macOS-Agent.dmg\"";
 			res.Headers["X-NiumaClaw-Node-Id"] = registered.NodeId.ToString(CultureInfo.InvariantCulture);
 			res.Headers["X-NiumaClaw-Adapter-Type"] = adapterType;
 			res.ContentLength64 = array.Length;

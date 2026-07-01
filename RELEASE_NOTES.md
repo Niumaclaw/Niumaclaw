@@ -1,5 +1,14 @@
 # Release Notes
 
+## v1.0.4 - Native macOS DMG Client
+
+### Highlights
+
+- macOS 下载入口改为直接下载 `.dmg` 安装镜像，不再下载 `.command` 启动脚本。
+- DMG 内含 `NiumaClaw Agent.app`，双击后会安装账号专属 runner/config 并打开 Terminal 启动本机 Agent。
+- 后端使用预生成的 macOS DMG 模板，在下载时写入当前账号 token、节点 ID、adapter、workspace 和 runner，线上 Linux 服务器无需动态生成镜像。
+- 前端弹窗、下载文件名和成功提示统一改为 macOS DMG。
+
 ## v1.0.3 - Direct macOS Desktop Client
 
 ### Highlights
