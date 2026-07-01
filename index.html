@@ -12399,14 +12399,32 @@ async function requestDesktopClientPackage(adapter, workspace, options = {}) {
 
 async function requestMacDesktopClient(adapter, workspace, options = {}) {
     const normalized = normalizeDesktopAdapter(adapter);
+    const deviceId = ensureRunnerDeviceId(normalized);
+    const deviceName = `${desktopAdapterDisplayName(normalized)} macOS Desktop Client`;
+    if (options.download !== false) {
+        const params = new URLSearchParams({
+            adapterType: normalized,
+            workspacePath: workspace || '',
+            deviceId,
+            deviceName
+        });
+        const url = `/api/agent-nodes/macos-client?${params.toString()}`;
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `NiumaClaw-${desktopAdapterDisplayName(normalized).replace(/\s+/g, '-')}-macOS-Agent.dmg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return { nodeId: '', url };
+    }
     const res = await fetch('/api/agent-nodes/macos-client', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             adapterType: normalized,
             workspacePath: workspace || '',
-            deviceId: ensureRunnerDeviceId(normalized),
-            deviceName: `${desktopAdapterDisplayName(normalized)} macOS Desktop Client`
+            deviceId,
+            deviceName
         })
     });
     if (!res.ok) {
@@ -13253,115 +13271,131 @@ function normalizeDeskStatusText(text, fallback = '待命中') {
     }
 }
 
-setInterval(async () => {
+let deskStatusPollInFlight = false;
+let lastDeskTaskBadgePollAt = 0;
+
+async function pollDeskStatuses() {
+    if (deskStatusPollInFlight) return;
+    deskStatusPollInFlight = true;
     const desks = document.querySelectorAll('.company-card.at-work');
+    const shouldRefreshTaskBadges = Date.now() - lastDeskTaskBadgePollAt > 30000;
+    if (shouldRefreshTaskBadges) lastDeskTaskBadgePollAt = Date.now();
     let alertPayload = [];
     let heartbeatPayload = {};
     try {
-        const [alertRes, heartbeatRes] = await Promise.all([
-            fetch('/api/alerts'),
-            fetch('/api/heartbeat')
-        ]);
-        alertPayload = alertRes.ok ? await alertRes.json() : [];
-        heartbeatPayload = heartbeatRes.ok ? await heartbeatRes.json() : {};
-        await refreshNodeDiagnosis(false);
-        heartbeatCache = heartbeatPayload || {};
-    } catch (_) {
-        alertPayload = [];
-        heartbeatPayload = {};
-        heartbeatCache = {};
-    }
-    updateDeskAlertBadge(alertPayload);
-    refreshControlPlaneOverview().catch(() => {});
-
-    for (const desk of desks) {
-        const name = desk.querySelector('.id-card-name').innerText;
-        const bubble = desk.querySelector('.chat-bubble');
-        if (!name || !bubble) continue;
-
         try {
-            const [statusRes, runs] = await Promise.all([
-                fetch('/api/status', {
-                    method: 'GET',
-                    headers: { 'X-Username': encodeURIComponent(name) }
-                }),
-                fetchAgentJsonSafe('/api/agent/runs?user=' + encodeURIComponent(name)).catch(() => [])
+            const [alertRes, heartbeatRes] = await Promise.all([
+                fetch('/api/alerts'),
+                fetch('/api/heartbeat')
             ]);
+            alertPayload = alertRes.ok ? await alertRes.json() : [];
+            heartbeatPayload = heartbeatRes.ok ? await heartbeatRes.json() : {};
+            await refreshNodeDiagnosis(false);
+            heartbeatCache = heartbeatPayload || {};
+        } catch (_) {
+            alertPayload = [];
+            heartbeatPayload = {};
+            heartbeatCache = {};
+        }
+        updateDeskAlertBadge(alertPayload);
+        refreshControlPlaneOverview().catch(() => {});
 
-            if (statusRes.ok) {
-                const data = await statusRes.json();
-                const latestRun = Array.isArray(runs) && runs.length ? runs[0] : null;
-                if (data.isWorking) {
-                    bubble.classList.remove('done');
-                    bubble.classList.add('thinking');
-                    const actionText = normalizeDeskStatusText(data.currentAction, '工作中...');
-                    const bubbleLogText = getBubbleProcessText(latestRun, actionText);
-                    bubble.innerText = bubbleLogText || actionText;
-                    bubble.title = bubbleLogText || actionText;
-                    bubble.dataset.logMode = 'running';
-                } else {
-                    const startTime = parseInt(desk.dataset.taskStartTime || '0', 10);
-                    if (Date.now() - startTime < 3000) {
-                        continue;
-                    }
+        for (const desk of desks) {
+            const name = desk.querySelector('.id-card-name')?.innerText?.trim() || '';
+            const bubble = desk.querySelector('.chat-bubble');
+            if (!name || !bubble) continue;
 
-                    if (latestRun && ['timeout', 'failed', 'cancelled'].includes(String(latestRun.status || '').toLowerCase())) {
+            try {
+                const [statusRes, runs] = await Promise.all([
+                    fetch('/api/status', {
+                        method: 'GET',
+                        headers: { 'X-Username': encodeURIComponent(name) }
+                    }),
+                    fetchAgentJsonSafe('/api/agent/runs?user=' + encodeURIComponent(name)).catch(() => [])
+                ]);
+
+                if (statusRes.ok) {
+                    const data = await statusRes.json();
+                    const latestRun = Array.isArray(runs) && runs.length ? runs[0] : null;
+                    if (data.isWorking) {
                         bubble.classList.remove('done');
                         bubble.classList.add('thinking');
-                        const errorText = getBubbleProcessText(latestRun, latestRun.lastError || data.currentAction || '异常');
-                        bubble.innerText = errorText || '异常';
-                        bubble.title = errorText || '异常';
-                        bubble.dataset.logMode = 'error';
-                    } else if (bubble.classList.contains('thinking')) {
-                        bubble.classList.remove('thinking');
-                        bubble.classList.add('done');
-                        const doneText = getBubbleProcessText(latestRun, '完成，点击查看工作日志');
-                        bubble.innerText = doneText || '完成，点击查看工作日志';
-                        bubble.title = doneText || '完成，点击查看工作日志';
-                        bubble.dataset.logMode = 'done';
-                    } else if (!bubble.classList.contains('done')) {
-                        bubble.classList.remove('thinking');
-                        const idleFallback = normalizeDeskStatusText(data.currentAction, '待命中');
-                        const idleText = getBubbleProcessText(latestRun, idleFallback);
-                        bubble.innerText = normalizeDeskStatusText(idleText, idleFallback);
-                        bubble.title = normalizeDeskStatusText(idleText, idleFallback);
-                        bubble.dataset.logMode = 'idle';
+                        const actionText = normalizeDeskStatusText(data.currentAction, '工作中...');
+                        const bubbleLogText = getBubbleProcessText(latestRun, actionText);
+                        bubble.innerText = bubbleLogText || actionText;
+                        bubble.title = bubbleLogText || actionText;
+                        bubble.dataset.logMode = 'running';
+                    } else {
+                        const startTime = parseInt(desk.dataset.taskStartTime || '0', 10);
+                        if (Date.now() - startTime < 3000) {
+                            continue;
+                        }
+
+                        if (latestRun && ['timeout', 'failed', 'cancelled'].includes(String(latestRun.status || '').toLowerCase())) {
+                            bubble.classList.remove('done');
+                            bubble.classList.add('thinking');
+                            const errorText = getBubbleProcessText(latestRun, latestRun.lastError || data.currentAction || '异常');
+                            bubble.innerText = errorText || '异常';
+                            bubble.title = errorText || '异常';
+                            bubble.dataset.logMode = 'error';
+                        } else if (bubble.classList.contains('thinking')) {
+                            bubble.classList.remove('thinking');
+                            bubble.classList.add('done');
+                            const doneText = getBubbleProcessText(latestRun, '完成，点击查看工作日志');
+                            bubble.innerText = doneText || '完成，点击查看工作日志';
+                            bubble.title = doneText || '完成，点击查看工作日志';
+                            bubble.dataset.logMode = 'done';
+                        } else if (!bubble.classList.contains('done')) {
+                            bubble.classList.remove('thinking');
+                            const idleFallback = normalizeDeskStatusText(data.currentAction, '待命中');
+                            const idleText = getBubbleProcessText(latestRun, idleFallback);
+                            bubble.innerText = normalizeDeskStatusText(idleText, idleFallback);
+                            bubble.title = normalizeDeskStatusText(idleText, idleFallback);
+                            bubble.dataset.logMode = 'idle';
+                        }
                     }
                 }
-            }
 
-            fetch('/api/tasks', { headers: { 'X-Username': encodeURIComponent(name) } })
-                .then(r => r.ok ? r.json() : [])
-                .then(tasks => {
-                    const pending = (tasks || []).filter(t => t.status === 'pending');
-                    const taskBadge = desk.querySelector('.task-badge');
-                    if (!taskBadge) return;
-                    if (pending.length > 0) {
-                        taskBadge.style.display = 'block';
-                        taskBadge.innerText = `待办任务(${pending.length})`;
-                    } else {
-                        taskBadge.style.display = 'none';
-                    }
-                })
-                .catch(() => {});
+                if (shouldRefreshTaskBadges) {
+                    fetch('/api/tasks', { headers: { 'X-Username': encodeURIComponent(name) } })
+                        .then(r => r.ok ? r.json() : [])
+                        .then(tasks => {
+                            const pending = (tasks || []).filter(t => t.status === 'pending');
+                            const taskBadge = desk.querySelector('.task-badge');
+                            if (!taskBadge) return;
+                            if (pending.length > 0) {
+                                taskBadge.style.display = 'block';
+                                taskBadge.innerText = `待办任务(${pending.length})`;
+                            } else {
+                                taskBadge.style.display = 'none';
+                            }
+                        })
+                        .catch(() => {});
+                }
 
-            window.agentRunCacheByEmployee = window.agentRunCacheByEmployee || {};
-            window.agentRunCacheByEmployee[name] = Array.isArray(runs) ? runs : [];
-            applyDeskAlertState(name, desk, bubble, alertPayload, heartbeatPayload);
-            applyDeskControlPlaneBadges(desk, name, runs, heartbeatPayload);
-            window.latestHeartbeatPayload = heartbeatPayload || {};
-            const reportModal = document.getElementById('reportModal');
-            if (reportModal && reportModal.style.display === 'flex' && reportModal.dataset.employee === name) {
-                refreshOpenWorklog(name).catch(() => {});
-                renderAgentPanelForEmployee(name).catch(() => {});
+                window.agentRunCacheByEmployee = window.agentRunCacheByEmployee || {};
+                window.agentRunCacheByEmployee[name] = Array.isArray(runs) ? runs : [];
+                applyDeskAlertState(name, desk, bubble, alertPayload, heartbeatPayload);
+                applyDeskControlPlaneBadges(desk, name, runs, heartbeatPayload);
+                window.latestHeartbeatPayload = heartbeatPayload || {};
+                const reportModal = document.getElementById('reportModal');
+                if (reportModal && reportModal.style.display === 'flex' && reportModal.dataset.employee === name) {
+                    refreshOpenWorklog(name).catch(() => {});
+                    renderAgentPanelForEmployee(name).catch(() => {});
+                }
+            } catch (e) {
+                bubble.classList.remove('thinking', 'done');
+                bubble.innerText = '状态异常';
+                applyDeskAlertState(name, desk, bubble, alertPayload, heartbeatPayload);
             }
-        } catch (e) {
-            bubble.classList.remove('thinking', 'done');
-            bubble.innerText = '状态异常';
-            applyDeskAlertState(name, desk, bubble, alertPayload, heartbeatPayload);
         }
+    } finally {
+        deskStatusPollInFlight = false;
     }
-}, 2000);
+}
+
+setTimeout(() => pollDeskStatuses().catch(() => {}), 1200);
+setInterval(() => pollDeskStatuses().catch(() => {}), 10000);
         async function showReportModal(deskId, empName) {
             document.getElementById('reportTitle').innerText = `${empName} 的工作日志`;
             document.getElementById('reportMarkdown').innerHTML = '<div style="text-align:center; padding:20px; color:#64748b;">正在加载工作日志...</div>';

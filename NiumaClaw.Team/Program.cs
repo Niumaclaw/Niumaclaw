@@ -1820,7 +1820,7 @@ internal class Program
 			await WriteJsonAsync(res, json);
 			return true;
 		}
-		if (text == "/api/agent-nodes/macos-client" && req.HttpMethod == "POST")
+		if (text == "/api/agent-nodes/macos-client" && (req.HttpMethod == "POST" || req.HttpMethod == "GET"))
 		{
 			AccountContext account = await GetAccountFromRequestAsync(req);
 			if (account == null)
@@ -1828,9 +1828,23 @@ internal class Program
 				await WriteJsonAsync(res, "{\"error\":\"unauthorized\"}", 401);
 				return true;
 			}
-			using StreamReader reader = new StreamReader(req.InputStream, Encoding.UTF8);
-			string text3 = await reader.ReadToEndAsync();
-			AgentNodeClientPackageRequest agentNodeClientPackageRequest = (string.IsNullOrWhiteSpace(text3) ? new AgentNodeClientPackageRequest() : (JsonSerializer.Deserialize(text3, AppJsonContext.Default.AgentNodeClientPackageRequest) ?? new AgentNodeClientPackageRequest()));
+			AgentNodeClientPackageRequest agentNodeClientPackageRequest;
+			if (req.HttpMethod == "GET")
+			{
+				agentNodeClientPackageRequest = new AgentNodeClientPackageRequest
+				{
+					AdapterType = req.QueryString["adapterType"],
+					WorkspacePath = req.QueryString["workspacePath"],
+					DeviceId = req.QueryString["deviceId"],
+					DeviceName = req.QueryString["deviceName"]
+				};
+			}
+			else
+			{
+				using StreamReader reader = new StreamReader(req.InputStream, Encoding.UTF8);
+				string text3 = await reader.ReadToEndAsync();
+				agentNodeClientPackageRequest = string.IsNullOrWhiteSpace(text3) ? new AgentNodeClientPackageRequest() : (JsonSerializer.Deserialize(text3, AppJsonContext.Default.AgentNodeClientPackageRequest) ?? new AgentNodeClientPackageRequest());
+			}
 			string adapterType = NormalizeAgentAdapterType(agentNodeClientPackageRequest.AdapterType);
 			string workspacePath = agentNodeClientPackageRequest.WorkspacePath?.Trim() ?? string.Empty;
 			string deviceName = ((!string.IsNullOrWhiteSpace(agentNodeClientPackageRequest.DeviceName)) ? agentNodeClientPackageRequest.DeviceName.Trim() : ((adapterType == "hermes_runner") ? "NiumaClaw Hermes macOS 客户端" : ((adapterType == "claude_runner") ? "NiumaClaw Claude Code macOS 客户端" : "NiumaClaw Codex macOS 客户端")));
@@ -5543,6 +5557,25 @@ internal class Program
 				}
 				res.ContentType = "application/vnd.microsoft.portable-executable";
 				res.Headers["Content-Disposition"] = "attachment; filename=\"NiumaClaw-Desktop-Setup.exe\"";
+				res.ContentLength64 = array2.Length;
+				await res.OutputStream.WriteAsync(array2);
+				return;
+			}
+			case "/downloads/niumaclaw-macos-agent-template.dmg":
+			case "/downloads/niumaclaw-macos-agent.dmg":
+			{
+				byte[] array2;
+				try
+				{
+					array2 = await LoadMacDesktopClientDmgTemplateAsync();
+				}
+				catch (FileNotFoundException)
+				{
+					res.StatusCode = 404;
+					return;
+				}
+				res.ContentType = "application/x-apple-diskimage";
+				res.Headers["Content-Disposition"] = "attachment; filename=\"NiumaClaw-macOS-Agent-template.dmg\"";
 				res.ContentLength64 = array2.Length;
 				await res.OutputStream.WriteAsync(array2);
 				return;

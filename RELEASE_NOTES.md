@@ -1,5 +1,21 @@
 # Release Notes
 
+## v1.0.8 - macOS Direct Download Fix
+
+### Highlights
+
+- macOS 客户端下载改为浏览器直连 `/api/agent-nodes/macos-client`，避免异步 blob 下载在页面压力大时看起来没有反应。
+- macOS 下载接口支持 GET 直链，同时保留 POST 生成逻辑。
+- 补齐 `/downloads/NiumaClaw-macOS-Agent-template.dmg` 静态路由，线上 DMG 文件不再返回 404。
+
+## v1.0.7 - Desktop Download Responsiveness Fix
+
+### Highlights
+
+- 首页员工状态轮询增加防重入，上一轮未完成时不会继续叠加新请求。
+- 任务徽标刷新从每 2 秒每员工一次降到 30 秒一次，减少刷新后浏览器主线程和网络压力。
+- 解决员工较多时刷新页面后“下载客户端”等按钮点击无响应的问题。
+
 ## v1.0.6 - macOS Gatekeeper First Launch Help
 
 ### Highlights
