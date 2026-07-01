@@ -849,6 +849,11 @@ internal class Program
 		return "'" + (value ?? string.Empty).Replace("'", "''") + "'";
 	}
 
+	private static string ShSingleQuote(string value)
+	{
+		return "'" + (value ?? string.Empty).Replace("'", "'\"'\"'") + "'";
+	}
+
 	private static string CmdEnvValue(string value)
 	{
 		return (value ?? string.Empty).Replace("\"", string.Empty);
@@ -915,6 +920,53 @@ internal class Program
 		return Encoding.UTF8.GetBytes(s);
 	}
 
+	private static async Task<byte[]> BuildAgentMacDesktopClientCommandAsync(string server, string token, long nodeId, string adapterType, string workspacePath, string deviceName)
+	{
+		string commandAdapter = RunnerCommandAdapter(adapterType);
+		string defaultWorkspace = string.IsNullOrWhiteSpace(workspacePath) ? "$HOME/NiumaClawWorkspace" : workspacePath.Trim();
+		string agentRunner = await LoadAgentRunnerScriptAsync();
+		string clientJson = "{\n  \"server\": " + JsonSerializer.Serialize(server, AppJsonContext.Default.String) + ",\n" + $"  \"nodeId\": {nodeId},\n" + "  \"adapter\": " + JsonSerializer.Serialize(commandAdapter, AppJsonContext.Default.String) + ",\n  \"adapterType\": " + JsonSerializer.Serialize(adapterType, AppJsonContext.Default.String) + ",\n  \"deviceName\": " + JsonSerializer.Serialize(deviceName, AppJsonContext.Default.String) + "\n}\n";
+		StringBuilder stringBuilder = new StringBuilder();
+		stringBuilder.AppendLine("#!/bin/bash");
+		stringBuilder.AppendLine("set -euo pipefail");
+		stringBuilder.AppendLine("INSTALL_DIR=\"$HOME/Library/Application Support/NiumaClawAgent\"");
+		stringBuilder.AppendLine("RUNNER_FILE=\"$INSTALL_DIR/agent_runner.py\"");
+		stringBuilder.AppendLine("CLIENT_FILE=\"$INSTALL_DIR/client.json\"");
+		if (string.IsNullOrWhiteSpace(workspacePath))
+		{
+			stringBuilder.AppendLine("DEFAULT_WORKSPACE=\"$HOME/NiumaClawWorkspace\"");
+		}
+		else
+		{
+			stringBuilder.AppendLine("DEFAULT_WORKSPACE=" + ShSingleQuote(defaultWorkspace));
+		}
+		stringBuilder.AppendLine("WORKSPACE=\"${NIUMACLAW_WORKSPACE:-$DEFAULT_WORKSPACE}\"");
+		stringBuilder.AppendLine("mkdir -p \"$INSTALL_DIR\" \"$WORKSPACE\"");
+		stringBuilder.AppendLine("export NIUMACLAW_RUNNER_B64=" + ShSingleQuote(Base64Utf8(agentRunner)));
+		stringBuilder.AppendLine("export NIUMACLAW_CLIENT_B64=" + ShSingleQuote(Base64Utf8(clientJson)));
+		stringBuilder.AppendLine("if ! command -v python3 >/dev/null 2>&1; then");
+		stringBuilder.AppendLine("  echo \"未检测到 Python 3。请先安装 Python 3，然后重新打开本客户端。\"");
+		stringBuilder.AppendLine("  read -r -p \"按 Enter 退出...\" _");
+		stringBuilder.AppendLine("  exit 1");
+		stringBuilder.AppendLine("fi");
+		stringBuilder.AppendLine("python3 - \"$RUNNER_FILE\" \"$CLIENT_FILE\" <<'PY'");
+		stringBuilder.AppendLine("import base64");
+		stringBuilder.AppendLine("import os");
+		stringBuilder.AppendLine("import pathlib");
+		stringBuilder.AppendLine("import sys");
+		stringBuilder.AppendLine("pathlib.Path(sys.argv[1]).write_bytes(base64.b64decode(os.environ['NIUMACLAW_RUNNER_B64']))");
+		stringBuilder.AppendLine("pathlib.Path(sys.argv[2]).write_bytes(base64.b64decode(os.environ['NIUMACLAW_CLIENT_B64']))");
+		stringBuilder.AppendLine("os.chmod(sys.argv[2], 0o600)");
+		stringBuilder.AppendLine("PY");
+		stringBuilder.AppendLine("echo \"NiumaClaw macOS 客户端已启动\"");
+		stringBuilder.AppendLine($"echo \"节点 ID: {nodeId}\"");
+		stringBuilder.AppendLine("echo \"工作区: $WORKSPACE\"");
+		stringBuilder.AppendLine("echo \"客户端文件: $RUNNER_FILE\"");
+		stringBuilder.AppendLine("echo");
+		stringBuilder.AppendLine("exec python3 \"$RUNNER_FILE\" --server " + ShSingleQuote(server) + " --token " + ShSingleQuote(token) + " --adapter " + ShSingleQuote(commandAdapter) + " --workspace \"$WORKSPACE\"");
+		return Encoding.UTF8.GetBytes(stringBuilder.ToString());
+	}
+
 	private static async Task<byte[]> BuildAgentDesktopClientZipAsync(string server, string token, long nodeId, string adapterType, string workspacePath, string deviceName)
 	{
 		string commandAdapter = RunnerCommandAdapter(adapterType);
@@ -926,13 +978,12 @@ internal class Program
 		string content3 = $"@echo off\nchcp 65001 >nul\nsetlocal\ncd /d \"%~dp0\"\nset \"NIUMACLAW_SERVER={server}\"\nset \"NIUMACLAW_TOKEN={token}\"\nset \"NIUMACLAW_ADAPTER={commandAdapter}\"\nset \"NIUMACLAW_WORKSPACE={windowsWorkspace}\"\nif not exist \"%NIUMACLAW_WORKSPACE%\" mkdir \"%NIUMACLAW_WORKSPACE%\"\necho NiumaClaw 桌面客户端已启动\necho 节点 ID: {nodeId}\necho 工作区: %NIUMACLAW_WORKSPACE%\necho.\nwhere py >nul 2>nul\nif %ERRORLEVEL% EQU 0 (\n  py -3 agent_runner.py --server \"%NIUMACLAW_SERVER%\" --token \"%NIUMACLAW_TOKEN%\" --adapter \"%NIUMACLAW_ADAPTER%\" --workspace \"%NIUMACLAW_WORKSPACE%\"\n) else (\n  python agent_runner.py --server \"%NIUMACLAW_SERVER%\" --token \"%NIUMACLAW_TOKEN%\" --adapter \"%NIUMACLAW_ADAPTER%\" --workspace \"%NIUMACLAW_WORKSPACE%\"\n)\necho.\necho 客户端已退出。\npause";
 		string content4 = $"$ErrorActionPreference = \"Stop\"\n$root = Split-Path -Parent $MyInvocation.MyCommand.Path\nSet-Location $root\n$server = \"{server}\"\n$token = \"{token}\"\n$adapter = \"{commandAdapter}\"\n$workspace = \"{powershellWorkspace}\"\nNew-Item -ItemType Directory -Path $workspace -Force | Out-Null\nWrite-Host \"NiumaClaw 桌面客户端已启动\"\nWrite-Host \"节点 ID: {nodeId}\"\nWrite-Host \"工作区: $workspace\"\npython agent_runner.py --server $server --token $token --adapter $adapter --workspace $workspace\nRead-Host \"按 Enter 退出\"";
 		string content5 = $"#!/usr/bin/env bash\nset -euo pipefail\ncd \"$(dirname \"$0\")\"\nSERVER=\"{server}\"\nTOKEN=\"{token}\"\nADAPTER=\"{commandAdapter}\"\nWORKSPACE=\"{shellWorkspace}\"\nmkdir -p \"$WORKSPACE\"\necho \"NiumaClaw desktop client started\"\necho \"Node ID: {nodeId}\"\necho \"Workspace: $WORKSPACE\"\npython3 agent_runner.py --server \"$SERVER\" --token \"$TOKEN\" --adapter \"$ADAPTER\" --workspace \"$WORKSPACE\"";
-		string content6 = $"NiumaClaw 桌面客户端\n\nWindows:\n1. 解压本 zip。\n2. 双击“启动 NiumaClaw Agent.cmd”。\n3. 回到网页招聘员工，接入方式选择“桌面客户端 Codex”或“桌面客户端 Hermes”，然后确认入职。\n\nmacOS:\n1. 解压本 zip。\n2. 双击 start-niumaclaw-agent.command；如果系统拦截，请在终端执行：chmod +x start-niumaclaw-agent.command && ./start-niumaclaw-agent.command\n3. 需要本机已安装 Python 3，并确认 Codex/Hermes/Claude Code 命令可在终端运行。\n\nLinux:\n1. 解压后运行：chmod +x start-niumaclaw-agent.sh\n2. 执行：./start-niumaclaw-agent.sh\n\n节点 ID: {nodeId}\n客户端: {deviceName}\n服务地址: {server}";
+		string content6 = $"NiumaClaw 桌面客户端\n\nWindows:\n1. 解压本 zip。\n2. 双击“启动 NiumaClaw Agent.cmd”。\n3. 回到网页招聘员工，接入方式选择“桌面客户端 Codex”或“桌面客户端 Hermes”，然后确认入职。\n\nLinux:\n1. 解压后运行：chmod +x start-niumaclaw-agent.sh\n2. 执行：./start-niumaclaw-agent.sh\n\nmacOS 请在网页中点击“下载 macOS 客户端”，直接下载 .command 客户端文件。\n\n节点 ID: {nodeId}\n客户端: {deviceName}\n服务地址: {server}";
 		using MemoryStream memoryStream = new MemoryStream();
 		using (ZipArchive archive = new ZipArchive(memoryStream, ZipArchiveMode.Create, leaveOpen: true))
 		{
 			AddZipTextEntry(archive, "启动 NiumaClaw Agent.cmd", content3);
 			AddZipTextEntry(archive, "start-niumaclaw-agent.ps1", content4);
-			AddZipTextEntry(archive, "start-niumaclaw-agent.command", content5, 493);
 			AddZipTextEntry(archive, "start-niumaclaw-agent.sh", content5, 493);
 			AddZipTextEntry(archive, "agent_runner.py", content);
 			AddZipTextEntry(archive, "client.json", content2);
@@ -1718,6 +1769,52 @@ internal class Program
 			(long, string, AgentNodeClientPayload) tuple = await RegisterAgentNodeAsync(account.AccountId, payload);
 			string json = "{\"status\":\"ok\",\"token\":" + JsonSerializer.Serialize(tuple.Item2, AppJsonContext.Default.String) + ",\"node\":" + JsonSerializer.Serialize(tuple.Item3, AppJsonContext.Default.AgentNodeClientPayload) + ",\"downloadUrl\":\"/agent_runner.py\"}";
 			await WriteJsonAsync(res, json);
+			return true;
+		}
+		if (text == "/api/agent-nodes/macos-client" && req.HttpMethod == "POST")
+		{
+			AccountContext account = await GetAccountFromRequestAsync(req);
+			if (account == null)
+			{
+				await WriteJsonAsync(res, "{\"error\":\"unauthorized\"}", 401);
+				return true;
+			}
+			using StreamReader reader = new StreamReader(req.InputStream, Encoding.UTF8);
+			string text3 = await reader.ReadToEndAsync();
+			AgentNodeClientPackageRequest agentNodeClientPackageRequest = (string.IsNullOrWhiteSpace(text3) ? new AgentNodeClientPackageRequest() : (JsonSerializer.Deserialize(text3, AppJsonContext.Default.AgentNodeClientPackageRequest) ?? new AgentNodeClientPackageRequest()));
+			string adapterType = NormalizeAgentAdapterType(agentNodeClientPackageRequest.AdapterType);
+			string workspacePath = agentNodeClientPackageRequest.WorkspacePath?.Trim() ?? string.Empty;
+			string deviceName = ((!string.IsNullOrWhiteSpace(agentNodeClientPackageRequest.DeviceName)) ? agentNodeClientPackageRequest.DeviceName.Trim() : ((adapterType == "hermes_runner") ? "NiumaClaw Hermes macOS 客户端" : ((adapterType == "claude_runner") ? "NiumaClaw Claude Code macOS 客户端" : "NiumaClaw Codex macOS 客户端")));
+			Dictionary<string, JsonElement> capabilities = new Dictionary<string, JsonElement>
+			{
+				["adapter"] = JsonStringElement(adapterType),
+				["runner"] = JsonStringElement(RunnerCommandAdapter(adapterType)),
+				["workspace"] = JsonStringElement(workspacePath),
+				["source"] = JsonStringElement("macos-client")
+			};
+			(long NodeId, string Token, AgentNodeClientPayload Node) registered = await RegisterAgentNodeAsync(account.AccountId, new AgentNodeRegisterRequest
+			{
+				DeviceId = (string.IsNullOrWhiteSpace(agentNodeClientPackageRequest.DeviceId) ? ("macos-client-" + adapterType + "-" + NewToken().Substring(0, 8)) : agentNodeClientPackageRequest.DeviceId.Trim()),
+				DeviceName = deviceName,
+				Platform = "macos-client",
+				Version = "1",
+				Capabilities = capabilities
+			});
+			string text4 = (string.IsNullOrWhiteSpace(req.Headers["Host"]) ? req.UserHostName : req.Headers["Host"]);
+			byte[] array = await BuildAgentMacDesktopClientCommandAsync((req.Url?.Scheme ?? "http") + "://" + text4, registered.Token, registered.NodeId, adapterType, workspacePath, deviceName);
+			string commandName = RunnerCommandAdapter(adapterType) switch
+			{
+				"hermes" => "Hermes",
+				"claude" => "Claude-Code",
+				_ => "Codex",
+			};
+			res.ContentType = "application/octet-stream";
+			res.Headers["Cache-Control"] = "no-store, no-cache, max-age=0";
+			res.Headers["Content-Disposition"] = $"attachment; filename=\"NiumaClaw-{commandName}-macOS-Agent.command\"";
+			res.Headers["X-NiumaClaw-Node-Id"] = registered.NodeId.ToString(CultureInfo.InvariantCulture);
+			res.Headers["X-NiumaClaw-Adapter-Type"] = adapterType;
+			res.ContentLength64 = array.Length;
+			await res.OutputStream.WriteAsync(array);
 			return true;
 		}
 		if (text == "/api/agent-nodes/client-package" && req.HttpMethod == "POST")

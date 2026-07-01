@@ -1,5 +1,13 @@
 # Release Notes
 
+## v1.0.3 - Direct macOS Desktop Client
+
+### Highlights
+
+- macOS 下载入口改为直接下载单个 `.command` 客户端文件，不再下载 zip。
+- macOS 客户端首次运行会把内置 `agent_runner.py` 和 `client.json` 安装到用户目录，然后直接启动本机 Agent。
+- 招聘员工流程在 macOS 浏览器中默认生成直接客户端文件；Windows 继续下载安装包，Linux 继续使用 zip 兼容包。
+
 ## v1.0.2 - macOS Desktop Client
 
 ### Highlights

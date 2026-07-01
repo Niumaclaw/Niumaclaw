@@ -1648,7 +1648,7 @@
             <div style="display:grid; grid-template-columns:1fr; gap:10px;">
                 <label style="font-size:12px; color:#64748b; font-weight:800;">桌面客户端</label>
                 <div style="padding:12px 14px; border:1px solid #dbeafe; border-radius:12px; background:#eff6ff; color:#1e3a8a; font-size:13px; line-height:1.6;">
-                    Windows 可下载安装包；macOS 可下载 zip 客户端，解压后双击 start-niumaclaw-agent.command 接入 Codex、Hermes、Claude Code。
+                    Windows 可下载安装包；macOS 可直接下载客户端文件，打开后接入 Codex、Hermes、Claude Code。
                 </div>
                 <select id="desktopClientAdapter" style="display:none; width:100%; padding:11px; border:1px solid #cbd5e1; border-radius:10px; outline:none;">
                     <option value="codex_runner">Codex 桌面客户端</option>
@@ -1657,7 +1657,7 @@
                 </select>
                 <label style="font-size:12px; color:#64748b; font-weight:800;">默认工作区（可选）</label>
                 <input id="desktopClientWorkspace" placeholder="留空则使用用户目录下的 NiumaClawWorkspace" style="box-sizing:border-box; width:100%; padding:11px; border:1px solid #cbd5e1; border-radius:10px; outline:none;">
-                <div id="desktopClientStatus" style="min-height:20px; color:#64748b; font-size:13px;">Windows 下载安装包；macOS 下载 zip 后双击 start-niumaclaw-agent.command。</div>
+                <div id="desktopClientStatus" style="min-height:20px; color:#64748b; font-size:13px;">Windows 下载安装包；macOS 直接下载客户端文件并打开。</div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                     <button id="desktopClientDownloadBtn" onclick="downloadDesktopClient(null, { platform: 'windows', package: false })" style="border:0; border-radius:12px; padding:12px; background:#0e7490; color:#fff; font-weight:900; cursor:pointer;">下载 Windows 安装包</button>
                     <button onclick="downloadMacDesktopClient()" style="border:0; border-radius:12px; padding:12px; background:#172033; color:#fff; font-weight:900; cursor:pointer;">下载 macOS 客户端</button>
@@ -12366,7 +12366,7 @@ function openDesktopClientModal() {
 async function requestDesktopClientPackage(adapter, workspace, options = {}) {
     const normalized = normalizeDesktopAdapter(adapter);
     const platform = String(options.platform || 'zip').toLowerCase();
-    const platformLabel = platform === 'macos' ? 'macOS' : platform === 'linux' ? 'Linux' : 'Cross-Platform';
+    const platformLabel = platform === 'linux' ? 'Linux' : 'Cross-Platform';
     const res = await fetch('/api/agent-nodes/client-package', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -12387,8 +12387,39 @@ async function requestDesktopClientPackage(adapter, workspace, options = {}) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        const packageName = platform === 'macos' ? 'macOS-Desktop-Agent' : platform === 'linux' ? 'Linux-Desktop-Agent' : 'Desktop-Agent';
+        const packageName = platform === 'linux' ? 'Linux-Desktop-Agent' : 'Desktop-Agent';
         a.download = `NiumaClaw-${desktopAdapterDisplayName(normalized).replace(/\s+/g, '-')}-${packageName}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+    return { nodeId, blob };
+}
+
+async function requestMacDesktopClient(adapter, workspace, options = {}) {
+    const normalized = normalizeDesktopAdapter(adapter);
+    const res = await fetch('/api/agent-nodes/macos-client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            adapterType: normalized,
+            workspacePath: workspace || '',
+            deviceId: ensureRunnerDeviceId(normalized),
+            deviceName: `${desktopAdapterDisplayName(normalized)} macOS Desktop Client`
+        })
+    });
+    if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || '生成 macOS 客户端失败');
+    }
+    const nodeId = res.headers.get('X-NiumaClaw-Node-Id') || '';
+    const blob = await res.blob();
+    if (options.download !== false) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `NiumaClaw-${desktopAdapterDisplayName(normalized).replace(/\s+/g, '-')}-macOS-Agent.command`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -12425,14 +12456,17 @@ async function downloadDesktopClient(adapterOverride = null, options = {}) {
     const modalStatus = document.getElementById('desktopClientStatus');
     const recruitStatus = document.getElementById('runnerConnectStatus');
     const platform = String(options.platform || detectDesktopClientPlatform()).toLowerCase();
-    const usePackage = options.package === true || platform === 'macos' || platform === 'linux' || platform === 'zip';
-    const downloadLabel = usePackage ? (platform === 'macos' ? 'macOS 客户端 zip' : '桌面客户端 zip') : 'Windows 安装包';
+    const useMacClient = options.macosClient === true || platform === 'macos';
+    const usePackage = !useMacClient && (options.package === true || platform === 'linux' || platform === 'zip');
+    const downloadLabel = useMacClient ? 'macOS 客户端' : (usePackage ? '桌面客户端 zip' : 'Windows 安装包');
     if (modalStatus) modalStatus.innerText = `正在生成${downloadLabel}，请留意下载栏...`;
     if (recruitStatus && document.getElementById('recruitAdapterType')?.value !== 'localnode') recruitStatus.innerText = `正在生成${downloadLabel}...`;
     try {
-        const result = usePackage
-            ? await requestDesktopClientPackage(adapter, workspace, { ...options, platform })
-            : await requestDesktopClientInstaller(adapter, workspace, options);
+        const result = useMacClient
+            ? await requestMacDesktopClient(adapter, workspace, options)
+            : (usePackage
+                ? await requestDesktopClientPackage(adapter, workspace, { ...options, platform })
+                : await requestDesktopClientInstaller(adapter, workspace, options));
         if (result?.nodeId) {
             const nodeInput = document.getElementById('recruitAgentNodeId');
             if (nodeInput && document.getElementById('recruitAdapterType')?.value === adapter) nodeInput.value = result.nodeId;
@@ -12446,12 +12480,11 @@ async function downloadDesktopClient(adapterOverride = null, options = {}) {
         if (options.toast !== false) {
             const desktopModal = document.getElementById('desktopClientModal');
             if (desktopModal) desktopModal.style.display = 'none';
-            const packageMessage = platform === 'macos'
-                ? '浏览器下载栏会显示 NiumaClaw macOS 客户端 zip。解压后双击 start-niumaclaw-agent.command；如系统拦截，请在终端执行 chmod +x start-niumaclaw-agent.command && ./start-niumaclaw-agent.command。'
-                : '浏览器下载栏会显示 NiumaClaw 桌面客户端 zip。解压后在终端执行 chmod +x start-niumaclaw-agent.sh && ./start-niumaclaw-agent.sh。';
-            const message = usePackage
-                ? packageMessage
-                : '浏览器下载栏会显示 NiumaClaw-Desktop-Setup.exe。安装后在桌面端登录账号，再启动 Codex/Hermes Agent。';
+            const message = useMacClient
+                ? '浏览器下载栏会显示 NiumaClaw macOS 客户端 .command 文件。下载后打开即可启动；如 macOS 提示无权限，请在终端执行 chmod +x 后再打开。'
+                : (usePackage
+                    ? '浏览器下载栏会显示 NiumaClaw 桌面客户端 zip。解压后在终端执行 chmod +x start-niumaclaw-agent.sh && ./start-niumaclaw-agent.sh。'
+                    : '浏览器下载栏会显示 NiumaClaw-Desktop-Setup.exe。安装后在桌面端登录账号，再启动 Codex/Hermes Agent。');
             showAppDialog({ title: '下载已开始', message, tone: 'success' });
         }
         return result;
@@ -12464,14 +12497,14 @@ async function downloadDesktopClient(adapterOverride = null, options = {}) {
 }
 
 async function downloadMacDesktopClient(adapterOverride = null, options = {}) {
-    return downloadDesktopClient(adapterOverride, { ...options, platform: 'macos', package: true });
+    return downloadDesktopClient(adapterOverride, { ...options, platform: 'macos', macosClient: true, package: false });
 }
 
 async function downloadDesktopClientForRecruit() {
     const adapter = getVisibleRunnerAdapter();
     const workspace = document.getElementById('recruitWorkspacePath')?.value?.trim() || '';
     const platform = detectDesktopClientPlatform();
-    return downloadDesktopClient(adapter, { workspace, platform, package: platform !== 'windows' });
+    return downloadDesktopClient(adapter, { workspace, platform, macosClient: platform === 'macos', package: platform !== 'windows' && platform !== 'macos' });
 }
 
 async function loadAgentNodes() {
@@ -12503,7 +12536,7 @@ async function refreshDesktopClientStatus() {
             if (modalStatus) modalStatus.innerText = text;
             return node;
         }
-        const emptyText = '还没有在线客户端。Windows 点击下载安装包；macOS 点击下载客户端 zip 并启动。';
+        const emptyText = '还没有在线客户端。Windows 点击下载安装包；macOS 点击下载客户端并打开。';
         if (status) status.innerText = emptyText;
         if (modalStatus) modalStatus.innerText = emptyText;
         return null;
@@ -12523,7 +12556,7 @@ async function ensureDesktopAgentNodeForRecruit(adapter, workspace) {
         return String(node.id);
     }
     const platform = detectDesktopClientPlatform();
-    const result = await downloadDesktopClient(adapter, { workspace, platform, package: platform !== 'windows', toast: true });
+    const result = await downloadDesktopClient(adapter, { workspace, platform, macosClient: platform === 'macos', package: platform !== 'windows' && platform !== 'macos', toast: true });
     return result?.nodeId || '';
 }
 
