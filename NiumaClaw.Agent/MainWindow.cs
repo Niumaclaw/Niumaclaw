@@ -80,7 +80,7 @@ internal sealed class MainWindow : Window
             _statusText.Text = "缺少配置";
             _metaText.Text = error;
             AppendLog(error);
-            _startButton.IsEnabled = false;
+            SetRunnerButtons(isRunning: false, canStart: false);
             return;
         }
 
@@ -164,8 +164,9 @@ internal sealed class MainWindow : Window
         _runner = new AgentRunner(_config);
         _runner.Log += AppendLog;
         _runner.StatusChanged += SetStatus;
-        _startButton.IsEnabled = false;
-        _stopButton.IsEnabled = true;
+        SetRunnerButtons(isRunning: true, canStart: false);
+        _statusText.Text = "启动中";
+        AppendLog("Agent 已启动，正在等待网页派发任务。");
         _ = Task.Run(async () =>
         {
             try
@@ -179,8 +180,8 @@ internal sealed class MainWindow : Window
                     _runnerCts?.Dispose();
                     _runnerCts = null;
                     _runner = null;
-                    _startButton.IsEnabled = _config != null;
-                    _stopButton.IsEnabled = false;
+                    SetRunnerButtons(isRunning: false, canStart: _config != null);
+                    _statusText.Text = "已停止";
                 });
             }
         });
@@ -188,7 +189,16 @@ internal sealed class MainWindow : Window
 
     private void StopRunner()
     {
+        if (_runnerCts == null) return;
+        _statusText.Text = "正在停止";
         _runnerCts?.Cancel();
+    }
+
+    private void SetRunnerButtons(bool isRunning, bool canStart)
+    {
+        _startButton.Content = isRunning ? "Agent 已运行" : "启动 Agent";
+        _startButton.IsEnabled = canStart;
+        _stopButton.IsEnabled = isRunning;
     }
 
     private void SetStatus(string status)

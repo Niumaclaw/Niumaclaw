@@ -1,5 +1,12 @@
 # Release Notes
 
+## v1.0.16 - Agent Running State UI
+
+### Highlights
+
+- macOS/Windows 桌面 Agent 自动启动后，按钮从“启动 Agent”改为“Agent 已运行”，避免灰色启动按钮被误解为无法启动。
+- Agent 在线等待任务时状态改为“已连接，待命中”，并在日志里明确提示正在等待网页派发任务。
+
 ## v1.0.15 - Native Desktop App Repair
 
 ### Highlights

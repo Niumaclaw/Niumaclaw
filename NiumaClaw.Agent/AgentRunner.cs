@@ -37,12 +37,12 @@ internal sealed class AgentRunner
                 await PostJsonAsync("/api/agent-nodes/heartbeat", new
                 AgentHeartbeatRequest(
                     Environment.OSVersion.Platform.ToString(),
-                    "1.0.1",
+                    "1.0.2",
                     Capabilities()),
                     AgentJsonContext.Default.AgentHeartbeatRequest,
                     cancellationToken);
 
-                Status("待命中");
+                Status("已连接，待命中");
                 JsonDocument polled = await PostJsonAsync(
                     "/api/agent-nodes/jobs/poll",
                     new AgentPollRequest(25000, Capabilities()),
@@ -230,7 +230,7 @@ internal sealed class AgentRunner
         string url = _config.Server.TrimEnd('/') + path;
         using HttpRequestMessage req = new(HttpMethod.Post, url);
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _config.Token);
-        req.Headers.UserAgent.ParseAdd("NiumaClaw-Agent/1.0.1");
+        req.Headers.UserAgent.ParseAdd("NiumaClaw-Agent/1.0.2");
         req.Content = new StringContent(JsonSerializer.Serialize(payload, jsonTypeInfo), Encoding.UTF8, "application/json");
 
         using HttpResponseMessage res = await _http.SendAsync(req, timeoutCts.Token).ConfigureAwait(false);
