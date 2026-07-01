@@ -1548,7 +1548,7 @@
 </head>
 
 <body style="margin:0; padding:0; width:100vw; height:100vh; background-color:#ab9980; ">
-    <div id="authGate" style="display:none; position:fixed; inset:0; z-index:20000; background:linear-gradient(135deg,#ab9980,#f8fafc); align-items:center; justify-content:center; padding:24px;">
+    <div id="authGate" style="display:none; pointer-events:none; position:fixed; inset:0; z-index:20000; background:linear-gradient(135deg,#ab9980,#f8fafc); align-items:center; justify-content:center; padding:24px;">
         <div style="box-sizing:border-box; width:min(760px,92vw); background:#fff; border:1px solid rgba(148,163,184,0.35); border-radius:28px; box-shadow:0 24px 80px rgba(15,23,42,0.25); padding:28px 30px;">
             <div id="authEyebrow" style="font-size:13px; color:#64748b; font-weight:800; margin-bottom:4px;">账号登录</div>
             <h2 id="authTitle" style="margin:0 0 20px; color:#172033; font-size:42px; line-height:1.08; letter-spacing:0;">账号登录</h2>
@@ -1648,7 +1648,7 @@
             <div style="display:grid; grid-template-columns:1fr; gap:10px;">
                 <label style="font-size:12px; color:#64748b; font-weight:800;">桌面客户端</label>
                 <div style="padding:12px 14px; border:1px solid #dbeafe; border-radius:12px; background:#eff6ff; color:#1e3a8a; font-size:13px; line-height:1.6;">
-                    Windows 可下载安装包；macOS 下载 DMG 安装镜像。Mac 首次打开请按住 Control 或右键点击 NiumaClaw Agent，再选择“打开”。
+                    Windows 下载桌面端 EXE；macOS 下载 DMG，内含真正的 NiumaClaw Agent.app。保持应用窗口打开即可接收网页派发的任务。
                 </div>
                 <select id="desktopClientAdapter" style="display:none; width:100%; padding:11px; border:1px solid #cbd5e1; border-radius:10px; outline:none;">
                     <option value="codex_runner">Codex 桌面客户端</option>
@@ -1657,9 +1657,9 @@
                 </select>
                 <label style="font-size:12px; color:#64748b; font-weight:800;">默认工作区（可选）</label>
                 <input id="desktopClientWorkspace" placeholder="留空则使用用户目录下的 NiumaClawWorkspace" style="box-sizing:border-box; width:100%; padding:11px; border:1px solid #cbd5e1; border-radius:10px; outline:none;">
-                <div id="desktopClientStatus" style="min-height:20px; color:#64748b; font-size:13px;">Windows 下载安装包；macOS 下载 DMG 后首次需右键打开。</div>
+                <div id="desktopClientStatus" style="min-height:20px; color:#64748b; font-size:13px;">Windows/macOS 均为原生桌面端应用，下载后直接启动客户端窗口。</div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                    <button id="desktopClientDownloadBtn" onclick="downloadDesktopClient(null, { platform: 'windows', package: false })" style="border:0; border-radius:12px; padding:12px; background:#0e7490; color:#fff; font-weight:900; cursor:pointer;">下载 Windows 安装包</button>
+                    <button id="desktopClientDownloadBtn" onclick="downloadDesktopClient(null, { platform: 'windows', package: false })" style="border:0; border-radius:12px; padding:12px; background:#0e7490; color:#fff; font-weight:900; cursor:pointer;">下载 Windows 桌面端</button>
                     <button onclick="downloadMacDesktopClient()" style="border:0; border-radius:12px; padding:12px; background:#172033; color:#fff; font-weight:900; cursor:pointer;">下载 macOS DMG</button>
                 </div>
                 <button onclick="refreshDesktopClientStatus()" style="border:0; border-radius:12px; padding:11px; background:#e0f2fe; color:#075985; font-weight:900; cursor:pointer;">查看在线客户端</button>
@@ -2147,7 +2147,10 @@
         };
         function showAuthGate(message = '') {
             const gate = document.getElementById('authGate');
-            if (gate) gate.style.display = 'flex';
+            if (gate) {
+                gate.style.display = 'flex';
+                gate.style.pointerEvents = 'auto';
+            }
             if (message) {
                 const status = document.getElementById('authStatus');
                 if (status) status.textContent = message;
@@ -2155,7 +2158,10 @@
         }
         function hideAuthGate() {
             const gate = document.getElementById('authGate');
-            if (gate) gate.style.display = 'none';
+            if (gate) {
+                gate.style.pointerEvents = 'none';
+                gate.style.display = 'none';
+            }
         }
         let authPanel = 'login';
         let authLoginMode = 'code';
@@ -2398,6 +2404,7 @@
         }
         function applyAccountUi(me) {
             const authed = !!me?.authenticated;
+            if (authed) hideAuthGate();
             const bar = document.getElementById('accountBar');
             if (bar) bar.style.display = 'flex';
             const loginBtn = document.getElementById('accountLoginBtn');
@@ -12350,7 +12357,8 @@ async function copyRunnerCommand() {
 }
 
 function openDesktopClientModal() {
-    if (!window.currentAccount?.authenticated) {
+    const account = getAuthenticatedAccount();
+    if (!account) {
         showAuthGate('请先登录，再下载当前账号专属的桌面客户端。');
         return;
     }
@@ -12395,6 +12403,16 @@ async function requestDesktopClientPackage(adapter, workspace, options = {}) {
         setTimeout(() => URL.revokeObjectURL(url), 2000);
     }
     return { nodeId, blob };
+}
+
+function getAuthenticatedAccount() {
+    if (window.currentAccount?.authenticated) return window.currentAccount;
+    if (window.__INITIAL_ACCOUNT__?.authenticated) {
+        window.currentAccount = window.__INITIAL_ACCOUNT__;
+        if (typeof applyAccountUi === 'function') applyAccountUi(window.currentAccount);
+        return window.currentAccount;
+    }
+    return null;
 }
 
 async function requestMacDesktopClient(adapter, workspace, options = {}) {
@@ -12448,15 +12466,19 @@ async function requestMacDesktopClient(adapter, workspace, options = {}) {
 
 async function requestDesktopClientInstaller(adapter, workspace, options = {}) {
     const normalized = normalizeDesktopAdapter(adapter);
+    const deviceId = ensureRunnerDeviceId(normalized);
+    const deviceName = `${desktopAdapterDisplayName(normalized)} Windows Desktop Client`;
     const params = new URLSearchParams({
         adapterType: normalized,
-        workspacePath: workspace || ''
+        workspacePath: workspace || '',
+        deviceId,
+        deviceName
     });
     const url = `/api/agent-nodes/installer?${params.toString()}`;
     if (options.download !== false) {
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'NiumaClaw-Desktop-Setup.exe';
+        a.download = 'NiumaClaw-Agent-Windows.exe';
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -12465,7 +12487,8 @@ async function requestDesktopClientInstaller(adapter, workspace, options = {}) {
 }
 
 async function downloadDesktopClient(adapterOverride = null, options = {}) {
-    if (!window.currentAccount?.authenticated) {
+    const account = getAuthenticatedAccount();
+    if (!account) {
         showAuthGate('请先登录，再下载当前账号专属的桌面客户端。');
         return null;
     }
@@ -12476,7 +12499,7 @@ async function downloadDesktopClient(adapterOverride = null, options = {}) {
     const platform = String(options.platform || detectDesktopClientPlatform()).toLowerCase();
     const useMacClient = options.macosClient === true || platform === 'macos';
     const usePackage = !useMacClient && (options.package === true || platform === 'linux' || platform === 'zip');
-    const downloadLabel = useMacClient ? 'macOS DMG' : (usePackage ? '桌面客户端 zip' : 'Windows 安装包');
+    const downloadLabel = useMacClient ? 'macOS 桌面端 DMG' : (usePackage ? '桌面客户端 zip' : 'Windows 桌面端 EXE');
     if (modalStatus) modalStatus.innerText = `正在生成${downloadLabel}，请留意下载栏...`;
     if (recruitStatus && document.getElementById('recruitAdapterType')?.value !== 'localnode') recruitStatus.innerText = `正在生成${downloadLabel}...`;
     try {
@@ -12490,19 +12513,19 @@ async function downloadDesktopClient(adapterOverride = null, options = {}) {
             if (nodeInput && document.getElementById('recruitAdapterType')?.value === adapter) nodeInput.value = result.nodeId;
         }
         if (modalStatus) modalStatus.innerText = '下载已开始。如果浏览器拦截下载，请允许本网站下载文件。';
-        if (recruitStatus && document.getElementById('recruitAdapterType')?.value === adapter) {
-            recruitStatus.innerText = result.nodeId
-                ? `已准备桌面客户端节点 ${result.nodeId}。安装并启动后即可接任务。`
-                : '下载已开始。安装并登录桌面端后，回到这里刷新状态即可绑定员工。';
-        }
+	        if (recruitStatus && document.getElementById('recruitAdapterType')?.value === adapter) {
+	            recruitStatus.innerText = result.nodeId
+	                ? `已准备桌面客户端节点 ${result.nodeId}。打开客户端窗口后即可接任务。`
+	                : '下载已开始。打开桌面端窗口后，回到这里刷新状态即可绑定员工。';
+	        }
         if (options.toast !== false) {
             const desktopModal = document.getElementById('desktopClientModal');
             if (desktopModal) desktopModal.style.display = 'none';
             const message = useMacClient
-                ? '浏览器下载栏会显示 NiumaClaw macOS Agent DMG。打开镜像后请按住 Control 或右键点击 NiumaClaw Agent，再选择“打开”。普通双击会被 macOS Gatekeeper 拦截。'
+                ? '浏览器下载栏会显示 NiumaClaw macOS Agent DMG。打开镜像后启动 NiumaClaw Agent.app，并保持窗口打开即可接收任务。未公证版本若被 macOS 拦截，仍需要右键打开或完成 Developer ID 签名公证。'
                 : (usePackage
                     ? '浏览器下载栏会显示 NiumaClaw 桌面客户端 zip。解压后在终端执行 chmod +x start-niumaclaw-agent.sh && ./start-niumaclaw-agent.sh。'
-                    : '浏览器下载栏会显示 NiumaClaw-Desktop-Setup.exe。安装后在桌面端登录账号，再启动 Codex/Hermes Agent。');
+                    : '浏览器下载栏会显示 NiumaClaw-Agent-Windows.exe。双击打开桌面端窗口，保持运行即可接收任务。');
             showAppDialog({ title: '下载已开始', message, tone: 'success' });
         }
         return result;
@@ -12554,7 +12577,7 @@ async function refreshDesktopClientStatus() {
             if (modalStatus) modalStatus.innerText = text;
             return node;
         }
-        const emptyText = '还没有在线客户端。Windows 点击下载安装包；macOS 下载 DMG 后首次需右键打开。';
+        const emptyText = '还没有在线客户端。请下载并打开 Windows/macOS 桌面端应用。';
         if (status) status.innerText = emptyText;
         if (modalStatus) modalStatus.innerText = emptyText;
         return null;

@@ -1,5 +1,49 @@
 # Release Notes
 
+## v1.0.14 - Stable Browser Home Download
+
+### Highlights
+
+- 首页改由 nginx 单层 gzip，避免应用和反代压缩/缓冲策略不一致导致刷新白屏或按钮脚本未就绪。
+- 线上反代配合关闭代理缓冲，让首页与大文件下载更稳定地流式返回。
+
+## v1.0.13 - Download Header Stability
+
+### Highlights
+
+- 大文件下载路由支持 HEAD 快速返回响应头，避免浏览器预检或公网验证卡在附件流上。
+- macOS DMG、Windows EXE 与旧安装器下载仍使用 GET 正常传输文件。
+
+## v1.0.12 - Native Windows Download Route
+
+### Highlights
+
+- 补齐 Windows 原生桌面端 `.exe` 静态下载路由，公网直接访问模板文件不再返回 404。
+- 继续保留账号专属动态下载，网页登录后下载到的 Windows 客户端会自动携带当前账号节点配置。
+
+## v1.0.11 - Smaller Home Page Gzip
+
+### Highlights
+
+- 首页内置 gzip 改用更小体积的压缩级别，减少公网刷新等待。
+- 延续 v1.0.10 的登录遮罩点击拦截修复和原生桌面端下载入口。
+
+## v1.0.10 - Native Desktop Download Fix
+
+### Highlights
+
+- 修复账号登录遮罩在刷新/接口 401 后残留拦截点击的问题，下载客户端按钮不再出现“点了没反应”。
+- 首页响应增加 gzip 支持，降低刷新后加载和脚本生效等待时间。
+- 下载弹窗会复用服务端注入的已登录账号信息，避免账号同步中误判为未登录。
+
+## v1.0.9 - Native Desktop Clients
+
+### Highlights
+
+- 新增 `NiumaClaw.Agent` 原生桌面客户端，macOS/Windows 都使用带窗口的可执行程序运行本机 Agent。
+- macOS DMG 模板改为真实 `NiumaClaw Agent.app`，服务端下载时注入当前账号节点配置。
+- Windows 下载改为账号专属 `NiumaClaw-Agent-Windows.exe`，不再依赖脚本安装器追加配置。
+
 ## v1.0.8 - macOS Direct Download Fix
 
 ### Highlights

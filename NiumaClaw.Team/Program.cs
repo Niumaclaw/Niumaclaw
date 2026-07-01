@@ -818,9 +818,15 @@ internal class Program
 
 	private const string MacDesktopClientDmgTemplateFileName = "NiumaClaw-macOS-Agent-template.dmg";
 
+	private const string WindowsDesktopClientTemplateFileName = "NiumaClaw-Agent-Windows-template.exe";
+
 	private const string MacDesktopClientDmgConfigStart = "__NIUMACLAW_CONFIG_B64_START__";
 
 	private const string MacDesktopClientDmgConfigEnd = "__NIUMACLAW_CONFIG_B64_END__";
+
+	private const string NativeDesktopClientConfigStart = "__NIUMACLAW_AGENT_CONFIG_B64_START__";
+
+	private const string NativeDesktopClientConfigEnd = "__NIUMACLAW_AGENT_CONFIG_B64_END__";
 
 	private static async Task<byte[]> LoadMacDesktopClientDmgTemplateAsync()
 	{
@@ -836,19 +842,42 @@ internal class Program
 		{
 			throw new FileNotFoundException("macOS client DMG template is missing from the deployment.", MacDesktopClientDmgTemplateFileName);
 		}
-		return await File.ReadAllBytesAsync(text);
-	}
+			return await File.ReadAllBytesAsync(text);
+		}
 
-	private static byte[] AppendDesktopLaunchConfigToExe(byte[] installer, string server, string adapterType, string workspacePath)
-	{
-		string s = "{\"serverUrl\":" + JsonSerializer.Serialize(server, AppJsonContext.Default.String) + ",\"adapterType\":" + JsonSerializer.Serialize(adapterType, AppJsonContext.Default.String) + ",\"workspacePath\":" + JsonSerializer.Serialize(workspacePath ?? string.Empty, AppJsonContext.Default.String) + "}";
-		string s2 = "\nNIUMACLAW_DESKTOP_CONFIG:" + Convert.ToBase64String(Encoding.UTF8.GetBytes(s)) + "\n";
+		private static async Task<byte[]?> LoadWindowsDesktopClientTemplateExeAsync()
+		{
+			string? text = new string[5]
+			{
+				Path.Combine(AppContext.BaseDirectory, "downloads", WindowsDesktopClientTemplateFileName),
+				Path.Combine(Environment.CurrentDirectory, "downloads", WindowsDesktopClientTemplateFileName),
+				Path.Combine(Environment.CurrentDirectory, "NiumaClaw.Team", "downloads", WindowsDesktopClientTemplateFileName),
+				Path.Combine(GetWorkspaceRootPath(), "downloads", WindowsDesktopClientTemplateFileName),
+				Path.Combine(GetWorkspaceRootPath(), "NiumaClaw.Team", "downloads", WindowsDesktopClientTemplateFileName)
+			}.FirstOrDefault(File.Exists);
+			return (!string.IsNullOrWhiteSpace(text)) ? (await File.ReadAllBytesAsync(text)) : null;
+		}
+
+		private static byte[] AppendDesktopLaunchConfigToExe(byte[] installer, string server, string adapterType, string workspacePath)
+		{
+			string s = "{\"serverUrl\":" + JsonSerializer.Serialize(server, AppJsonContext.Default.String) + ",\"adapterType\":" + JsonSerializer.Serialize(adapterType, AppJsonContext.Default.String) + ",\"workspacePath\":" + JsonSerializer.Serialize(workspacePath ?? string.Empty, AppJsonContext.Default.String) + "}";
+			string s2 = "\nNIUMACLAW_DESKTOP_CONFIG:" + Convert.ToBase64String(Encoding.UTF8.GetBytes(s)) + "\n";
 		byte[] bytes = Encoding.ASCII.GetBytes(s2);
 		byte[] array = new byte[installer.Length + bytes.Length];
 		Buffer.BlockCopy(installer, 0, array, 0, installer.Length);
-		Buffer.BlockCopy(bytes, 0, array, installer.Length, bytes.Length);
-		return array;
-	}
+			Buffer.BlockCopy(bytes, 0, array, installer.Length, bytes.Length);
+			return array;
+		}
+
+		private static byte[] AppendNativeDesktopClientConfigToExe(byte[] executable, string configJson)
+		{
+			string payload = "\n" + NativeDesktopClientConfigStart + Base64Utf8(configJson) + NativeDesktopClientConfigEnd + "\n";
+			byte[] payloadBytes = Encoding.ASCII.GetBytes(payload);
+			byte[] output = new byte[executable.Length + payloadBytes.Length];
+			Buffer.BlockCopy(executable, 0, output, 0, executable.Length);
+			Buffer.BlockCopy(payloadBytes, 0, output, executable.Length, payloadBytes.Length);
+			return output;
+		}
 
 	private static void AddZipTextEntry(ZipArchive archive, string name, string content, int? unixMode = null)
 	{
@@ -943,15 +972,30 @@ internal class Program
 		return Encoding.UTF8.GetBytes(s);
 	}
 
-	private static async Task<byte[]> BuildAgentMacDesktopClientDmgAsync(string server, string token, long nodeId, string adapterType, string workspacePath, string deviceName)
-	{
-		string commandAdapter = RunnerCommandAdapter(adapterType);
-		string agentRunner = await LoadAgentRunnerScriptAsync();
-		string normalizedWorkspace = workspacePath?.Trim() ?? string.Empty;
-		string configJson = "{\n  \"server\": " + JsonSerializer.Serialize(server, AppJsonContext.Default.String) + ",\n" + $"  \"nodeId\": {nodeId},\n" + "  \"token\": " + JsonSerializer.Serialize(token, AppJsonContext.Default.String) + ",\n  \"adapter\": " + JsonSerializer.Serialize(commandAdapter, AppJsonContext.Default.String) + ",\n  \"adapterType\": " + JsonSerializer.Serialize(adapterType, AppJsonContext.Default.String) + ",\n  \"deviceName\": " + JsonSerializer.Serialize(deviceName, AppJsonContext.Default.String) + ",\n  \"workspace\": " + JsonSerializer.Serialize(normalizedWorkspace, AppJsonContext.Default.String) + ",\n  \"runner\": " + JsonSerializer.Serialize(Base64Utf8(agentRunner), AppJsonContext.Default.String) + "\n}\n";
-		byte[] template = await LoadMacDesktopClientDmgTemplateAsync();
-		return PatchMacDesktopClientDmgConfig(template, Base64Utf8(configJson));
-	}
+		private static async Task<byte[]> BuildAgentMacDesktopClientDmgAsync(string server, string token, long nodeId, string adapterType, string workspacePath, string deviceName)
+		{
+			string configJson = BuildNativeDesktopClientConfigJson(server, token, nodeId, adapterType, workspacePath, deviceName);
+			byte[] template = await LoadMacDesktopClientDmgTemplateAsync();
+			return PatchMacDesktopClientDmgConfig(template, Base64Utf8(configJson));
+		}
+
+		private static async Task<byte[]> BuildAgentWindowsDesktopClientExeAsync(string server, string token, long nodeId, string adapterType, string workspacePath, string deviceName)
+		{
+			byte[]? template = await LoadWindowsDesktopClientTemplateExeAsync();
+			if (template == null)
+			{
+				throw new FileNotFoundException("Windows desktop client template is missing from the deployment.", WindowsDesktopClientTemplateFileName);
+			}
+			string configJson = BuildNativeDesktopClientConfigJson(server, token, nodeId, adapterType, workspacePath, deviceName);
+			return AppendNativeDesktopClientConfigToExe(template, configJson);
+		}
+
+		private static string BuildNativeDesktopClientConfigJson(string server, string token, long nodeId, string adapterType, string workspacePath, string deviceName)
+		{
+			string commandAdapter = RunnerCommandAdapter(adapterType);
+			string normalizedWorkspace = workspacePath?.Trim() ?? string.Empty;
+			return "{\n  \"server\": " + JsonSerializer.Serialize(server, AppJsonContext.Default.String) + ",\n" + $"  \"nodeId\": {nodeId},\n" + "  \"token\": " + JsonSerializer.Serialize(token, AppJsonContext.Default.String) + ",\n  \"adapter\": " + JsonSerializer.Serialize(commandAdapter, AppJsonContext.Default.String) + ",\n  \"adapterType\": " + JsonSerializer.Serialize(adapterType, AppJsonContext.Default.String) + ",\n  \"deviceName\": " + JsonSerializer.Serialize(deviceName, AppJsonContext.Default.String) + ",\n  \"workspace\": " + JsonSerializer.Serialize(normalizedWorkspace, AppJsonContext.Default.String) + "\n}\n";
+		}
 
 	private static byte[] PatchMacDesktopClientDmgConfig(byte[] template, string configBase64)
 	{
@@ -1916,47 +1960,69 @@ internal class Program
 			res.ContentLength64 = array.Length;
 			await res.OutputStream.WriteAsync(array);
 			return true;
-		}
-		if (text == "/api/agent-nodes/installer" && (req.HttpMethod == "POST" || req.HttpMethod == "GET"))
-		{
-			if (await GetAccountFromRequestAsync(req) == null)
-			{
-				await WriteJsonAsync(res, "{\"error\":\"unauthorized\"}", 401);
-				return true;
 			}
-			AgentNodeClientPackageRequest agentNodeClientPackageRequest2;
+			if (text == "/api/agent-nodes/installer" && (req.HttpMethod == "POST" || req.HttpMethod == "GET"))
+			{
+				AccountContext account = await GetAccountFromRequestAsync(req);
+				if (account == null)
+				{
+					await WriteJsonAsync(res, "{\"error\":\"unauthorized\"}", 401);
+					return true;
+				}
+				AgentNodeClientPackageRequest agentNodeClientPackageRequest2;
 			if (req.HttpMethod == "GET")
 			{
-				agentNodeClientPackageRequest2 = new AgentNodeClientPackageRequest
+					agentNodeClientPackageRequest2 = new AgentNodeClientPackageRequest
+					{
+						AdapterType = req.QueryString["adapterType"],
+						WorkspacePath = req.QueryString["workspacePath"],
+						DeviceId = req.QueryString["deviceId"],
+						DeviceName = req.QueryString["deviceName"]
+					};
+				}
+				else
 				{
-					AdapterType = req.QueryString["adapterType"],
-					WorkspacePath = req.QueryString["workspacePath"]
+					using StreamReader reader = new StreamReader(req.InputStream, Encoding.UTF8);
+					string text5 = await reader.ReadToEndAsync();
+					agentNodeClientPackageRequest2 = (string.IsNullOrWhiteSpace(text5) ? new AgentNodeClientPackageRequest() : (JsonSerializer.Deserialize(text5, AppJsonContext.Default.AgentNodeClientPackageRequest) ?? new AgentNodeClientPackageRequest()));
+				}
+				string adapterType = NormalizeAgentAdapterType(agentNodeClientPackageRequest2.AdapterType);
+				string workspacePath = agentNodeClientPackageRequest2.WorkspacePath?.Trim() ?? string.Empty;
+				string deviceName = ((!string.IsNullOrWhiteSpace(agentNodeClientPackageRequest2.DeviceName)) ? agentNodeClientPackageRequest2.DeviceName.Trim() : ((adapterType == "hermes_runner") ? "NiumaClaw Hermes Windows 客户端" : ((adapterType == "claude_runner") ? "NiumaClaw Claude Code Windows 客户端" : "NiumaClaw Codex Windows 客户端")));
+				Dictionary<string, JsonElement> capabilities = new Dictionary<string, JsonElement>
+				{
+					["adapter"] = JsonStringElement(adapterType),
+					["runner"] = JsonStringElement(RunnerCommandAdapter(adapterType)),
+					["workspace"] = JsonStringElement(workspacePath),
+					["source"] = JsonStringElement("windows-desktop-client")
 				};
-			}
-			else
-			{
-				using StreamReader reader = new StreamReader(req.InputStream, Encoding.UTF8);
-				string text5 = await reader.ReadToEndAsync();
-				agentNodeClientPackageRequest2 = (string.IsNullOrWhiteSpace(text5) ? new AgentNodeClientPackageRequest() : (JsonSerializer.Deserialize(text5, AppJsonContext.Default.AgentNodeClientPackageRequest) ?? new AgentNodeClientPackageRequest()));
-			}
-			string deviceName = NormalizeAgentAdapterType(agentNodeClientPackageRequest2.AdapterType);
-			string workspacePath = agentNodeClientPackageRequest2.WorkspacePath?.Trim() ?? string.Empty;
-			string adapterType = BuildPublicServerUrl(req);
-			byte[] array2 = await LoadDesktopInstallerExeAsync();
-			if (array2 == null)
-			{
-				await WriteJsonAsync(res, "{\"error\":\"desktop_installer_missing\"}", 404);
+				(long NodeId, string Token, AgentNodeClientPayload Node) registered = await RegisterAgentNodeAsync(account.AccountId, new AgentNodeRegisterRequest
+				{
+					DeviceId = (string.IsNullOrWhiteSpace(agentNodeClientPackageRequest2.DeviceId) ? ("windows-client-" + adapterType + "-" + NewToken().Substring(0, 8)) : agentNodeClientPackageRequest2.DeviceId.Trim()),
+					DeviceName = deviceName,
+					Platform = "windows-desktop-client",
+					Version = "1",
+					Capabilities = capabilities
+				});
+				byte[] array2;
+				try
+				{
+					array2 = await BuildAgentWindowsDesktopClientExeAsync(BuildPublicServerUrl(req), registered.Token, registered.NodeId, adapterType, workspacePath, deviceName);
+				}
+				catch (FileNotFoundException)
+				{
+					await WriteJsonAsync(res, "{\"error\":\"windows_desktop_client_template_missing\"}", 404);
+					return true;
+				}
+				res.ContentType = "application/vnd.microsoft.portable-executable";
+				res.Headers["Cache-Control"] = "no-store, no-cache, max-age=0";
+				res.Headers["Content-Disposition"] = "attachment; filename=\"NiumaClaw-Agent-Windows.exe\"";
+				res.Headers["X-NiumaClaw-Node-Id"] = registered.NodeId.ToString(CultureInfo.InvariantCulture);
+				res.Headers["X-NiumaClaw-Adapter-Type"] = adapterType;
+				res.ContentLength64 = array2.Length;
+				await res.OutputStream.WriteAsync(array2);
 				return true;
 			}
-			byte[] array3 = AppendDesktopLaunchConfigToExe(array2, adapterType, deviceName, workspacePath);
-			res.ContentType = "application/vnd.microsoft.portable-executable";
-			res.Headers["Cache-Control"] = "no-store, no-cache, max-age=0";
-			res.Headers["Content-Disposition"] = "attachment; filename=\"NiumaClaw-Desktop-Setup.exe\"";
-			res.Headers["X-NiumaClaw-Adapter-Type"] = deviceName;
-			res.ContentLength64 = array3.Length;
-			await res.OutputStream.WriteAsync(array3);
-			return true;
-		}
 		if (text == "/api/agent-nodes/bind" && req.HttpMethod == "POST")
 		{
 			AccountContext account = await GetAccountFromRequestAsync(req);
@@ -5491,6 +5557,36 @@ internal class Program
 		}
 	}
 
+	private static bool RequestAcceptsGzip(HttpListenerRequest req)
+	{
+		string? acceptEncoding = req.Headers["Accept-Encoding"];
+		return !string.IsNullOrWhiteSpace(acceptEncoding)
+			&& acceptEncoding.Split(',').Any((string item) => item.Trim().StartsWith("gzip", StringComparison.OrdinalIgnoreCase));
+	}
+
+	private static byte[] GzipBytes(byte[] bytes)
+	{
+		using MemoryStream memoryStream = new MemoryStream();
+		using (GZipStream gzipStream = new GZipStream(memoryStream, CompressionLevel.Optimal, leaveOpen: true))
+		{
+			gzipStream.Write(bytes, 0, bytes.Length);
+		}
+		return memoryStream.ToArray();
+	}
+
+	private static async Task WriteResponseBytesAsync(HttpListenerRequest req, HttpListenerResponse res, byte[] bytes, bool allowGzip = true)
+	{
+		byte[] payload = bytes;
+		if (allowGzip && bytes.Length >= 1024 && RequestAcceptsGzip(req))
+		{
+			payload = GzipBytes(bytes);
+			res.Headers["Content-Encoding"] = "gzip";
+			res.Headers["Vary"] = "Accept-Encoding";
+		}
+		res.ContentLength64 = payload.Length;
+		await res.OutputStream.WriteAsync(payload);
+	}
+
 	private static async Task HandleRequestCoreAsync(HttpListenerContext context)
 	{
 		HttpListenerRequest req = context.Request;
@@ -5520,12 +5616,11 @@ internal class Program
 					AppConfig initialConfig = await LoadAccountConfigAsync(account.AccountId);
 					List<ModelEndpointConfig> source = await LoadAccountModelsAsync(account.AccountId, includeSecrets: false);
 					html = InjectBeforeBodyEnd(html, BuildInitialTeamHydrationScript(initialConfig, BuildMePayload(account), source.Count((ModelEndpointConfig model) => model.Enabled)));
+					}
+					byte[] bytes = Encoding.UTF8.GetBytes(html);
+					await WriteResponseBytesAsync(req, res, bytes, allowGzip: false);
+					return;
 				}
-				byte[] bytes = Encoding.UTF8.GetBytes(html);
-				res.ContentLength64 = bytes.Length;
-				await res.OutputStream.WriteAsync(bytes);
-				return;
-			}
 			case "/agent_runner.py":
 			case "/download/agent_runner.py":
 			{
@@ -5541,29 +5636,56 @@ internal class Program
 					return;
 				}
 				byte[] array = await File.ReadAllBytesAsync(text);
-				res.ContentType = "text/x-python; charset=utf-8";
-				res.Headers["Content-Disposition"] = "attachment; filename=\"agent_runner.py\"";
-				res.ContentLength64 = array.Length;
-				await res.OutputStream.WriteAsync(array);
-				return;
-			}
-			case "/downloads/niumaclaw-desktop-setup.exe":
-			{
-				byte[] array2 = await LoadDesktopInstallerExeAsync();
-				if (array2 == null)
+					res.ContentType = "text/x-python; charset=utf-8";
+					res.Headers["Content-Disposition"] = "attachment; filename=\"agent_runner.py\"";
+					res.ContentLength64 = array.Length;
+					if (string.Equals(req.HttpMethod, "HEAD", StringComparison.OrdinalIgnoreCase))
+					{
+						return;
+					}
+					await res.OutputStream.WriteAsync(array);
+					return;
+				}
+				case "/downloads/niumaclaw-desktop-setup.exe":
 				{
+					byte[] array2 = await LoadDesktopInstallerExeAsync();
+					if (array2 == null)
+					{
 					res.StatusCode = 404;
 					return;
 				}
-				res.ContentType = "application/vnd.microsoft.portable-executable";
-				res.Headers["Content-Disposition"] = "attachment; filename=\"NiumaClaw-Desktop-Setup.exe\"";
-				res.ContentLength64 = array2.Length;
-				await res.OutputStream.WriteAsync(array2);
-				return;
-			}
-			case "/downloads/niumaclaw-macos-agent-template.dmg":
-			case "/downloads/niumaclaw-macos-agent.dmg":
-			{
+					res.ContentType = "application/vnd.microsoft.portable-executable";
+					res.Headers["Content-Disposition"] = "attachment; filename=\"NiumaClaw-Desktop-Setup.exe\"";
+					res.ContentLength64 = array2.Length;
+					if (string.Equals(req.HttpMethod, "HEAD", StringComparison.OrdinalIgnoreCase))
+					{
+						return;
+					}
+						await res.OutputStream.WriteAsync(array2);
+						return;
+					}
+				case "/downloads/niumaclaw-agent-windows-template.exe":
+				case "/downloads/niumaclaw-agent-windows.exe":
+				{
+					byte[]? array2 = await LoadWindowsDesktopClientTemplateExeAsync();
+					if (array2 == null)
+					{
+						res.StatusCode = 404;
+						return;
+					}
+						res.ContentType = "application/vnd.microsoft.portable-executable";
+						res.Headers["Content-Disposition"] = "attachment; filename=\"NiumaClaw-Agent-Windows.exe\"";
+						res.ContentLength64 = array2.Length;
+						if (string.Equals(req.HttpMethod, "HEAD", StringComparison.OrdinalIgnoreCase))
+						{
+							return;
+						}
+						await res.OutputStream.WriteAsync(array2);
+						return;
+					}
+				case "/downloads/niumaclaw-macos-agent-template.dmg":
+				case "/downloads/niumaclaw-macos-agent.dmg":
+				{
 				byte[] array2;
 				try
 				{
@@ -5574,12 +5696,16 @@ internal class Program
 					res.StatusCode = 404;
 					return;
 				}
-				res.ContentType = "application/x-apple-diskimage";
-				res.Headers["Content-Disposition"] = "attachment; filename=\"NiumaClaw-macOS-Agent-template.dmg\"";
-				res.ContentLength64 = array2.Length;
-				await res.OutputStream.WriteAsync(array2);
-				return;
-			}
+					res.ContentType = "application/x-apple-diskimage";
+					res.Headers["Content-Disposition"] = "attachment; filename=\"NiumaClaw-macOS-Agent-template.dmg\"";
+					res.ContentLength64 = array2.Length;
+					if (string.Equals(req.HttpMethod, "HEAD", StringComparison.OrdinalIgnoreCase))
+					{
+						return;
+					}
+					await res.OutputStream.WriteAsync(array2);
+					return;
+				}
 			}
 			if (TryGetDemoStaticFile(path, out html))
 			{

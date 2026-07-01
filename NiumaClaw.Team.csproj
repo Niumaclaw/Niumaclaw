@@ -4,9 +4,9 @@
     <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <Version>1.0.8</Version>
-    <FileVersion>1.0.8.0</FileVersion>
-    <InformationalVersion>1.0.8+macos-direct-download.20260701</InformationalVersion>
+    <Version>1.0.14</Version>
+    <FileVersion>1.0.14.0</FileVersion>
+    <InformationalVersion>1.0.14+native-desktop-download-fix.20260701</InformationalVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
@@ -82,11 +82,17 @@
     <EmbeddedResource Include="NiumaClaw.Team.6.png" LogicalName="NiumaClaw.Team.6.png" />
     <EmbeddedResource Include="NiumaClaw.Team.7.png" LogicalName="NiumaClaw.Team.7.png" />
     <EmbeddedResource Include="NiumaClaw.Team.8.png" LogicalName="NiumaClaw.Team.8.png" />
-  </ItemGroup>
+	  </ItemGroup>
   <ItemGroup>
+    <Compile Remove="NiumaClaw.Agent/**" />
+    <EmbeddedResource Remove="NiumaClaw.Agent/**" />
+    <None Remove="NiumaClaw.Agent/**" />
+  </ItemGroup>
+	  <ItemGroup>
     <None Include="index.html" CopyToOutputDirectory="Always" />
     <None Include="agent_runner.py" CopyToOutputDirectory="Always" />
     <None Include="downloads/NiumaClaw-Desktop-Setup.exe" CopyToOutputDirectory="PreserveNewest" Condition="Exists('downloads/NiumaClaw-Desktop-Setup.exe')" />
+    <None Include="downloads/NiumaClaw-Agent-Windows-template.exe" CopyToOutputDirectory="PreserveNewest" Condition="Exists('downloads/NiumaClaw-Agent-Windows-template.exe')" />
     <None Include="downloads/NiumaClaw-macOS-Agent-template.dmg" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
