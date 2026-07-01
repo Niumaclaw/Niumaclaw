@@ -1339,6 +1339,21 @@ internal class Program
 		res.Headers.Add("Set-Cookie", "niuma_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax");
 	}
 
+	private static string BuildPublicServerUrl(HttpListenerRequest req)
+	{
+		string scheme = (req.Headers["X-Forwarded-Proto"] ?? req.Url?.Scheme ?? "http").Split(',')[0].Trim();
+		if (string.IsNullOrWhiteSpace(scheme))
+		{
+			scheme = "http";
+		}
+		string host = (req.Headers["X-Forwarded-Host"] ?? req.Headers["Host"] ?? req.UserHostName ?? string.Empty).Split(',')[0].Trim();
+		if (string.IsNullOrWhiteSpace(host))
+		{
+			host = "127.0.0.1";
+		}
+		return scheme + "://" + host;
+	}
+
 	private static AuthMePayload BuildMePayload(AccountContext? account)
 	{
 		if (account == null)
@@ -1834,8 +1849,7 @@ internal class Program
 				Version = "1",
 				Capabilities = capabilities
 			});
-			string text4 = (string.IsNullOrWhiteSpace(req.Headers["Host"]) ? req.UserHostName : req.Headers["Host"]);
-			byte[] array = await BuildAgentMacDesktopClientDmgAsync((req.Url?.Scheme ?? "http") + "://" + text4, registered.Token, registered.NodeId, adapterType, workspacePath, deviceName);
+			byte[] array = await BuildAgentMacDesktopClientDmgAsync(BuildPublicServerUrl(req), registered.Token, registered.NodeId, adapterType, workspacePath, deviceName);
 			string commandName = RunnerCommandAdapter(adapterType) switch
 			{
 				"hermes" => "Hermes",
@@ -1880,8 +1894,7 @@ internal class Program
 				Version = "1",
 				Capabilities = capabilities
 			});
-			string text4 = (string.IsNullOrWhiteSpace(req.Headers["Host"]) ? req.UserHostName : req.Headers["Host"]);
-			byte[] array = await BuildAgentDesktopClientZipAsync((req.Url?.Scheme ?? "http") + "://" + text4, registered.Token, registered.NodeId, adapterType, workspacePath, deviceName);
+			byte[] array = await BuildAgentDesktopClientZipAsync(BuildPublicServerUrl(req), registered.Token, registered.NodeId, adapterType, workspacePath, deviceName);
 			res.ContentType = "application/zip";
 			res.Headers["Content-Disposition"] = "attachment; filename=\"NiumaClaw-Desktop-Agent.zip\"";
 			res.Headers["X-NiumaClaw-Node-Id"] = registered.NodeId.ToString(CultureInfo.InvariantCulture);
@@ -1914,8 +1927,7 @@ internal class Program
 			}
 			string deviceName = NormalizeAgentAdapterType(agentNodeClientPackageRequest2.AdapterType);
 			string workspacePath = agentNodeClientPackageRequest2.WorkspacePath?.Trim() ?? string.Empty;
-			string text6 = (string.IsNullOrWhiteSpace(req.Headers["Host"]) ? req.UserHostName : req.Headers["Host"]);
-			string adapterType = (req.Url?.Scheme ?? "http") + "://" + text6;
+			string adapterType = BuildPublicServerUrl(req);
 			byte[] array2 = await LoadDesktopInstallerExeAsync();
 			if (array2 == null)
 			{

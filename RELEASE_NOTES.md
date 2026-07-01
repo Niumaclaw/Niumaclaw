@@ -1,5 +1,12 @@
 # Release Notes
 
+## v1.0.5 - Public Download URL Fix
+
+### Highlights
+
+- 桌面客户端下载配置优先使用反向代理传入的 `X-Forwarded-Proto` 和 `X-Forwarded-Host`，公网 HTTPS 下载的 macOS DMG 会写入 `https://niuma.wiki`。
+- 同步修正 Windows 安装包和跨平台 zip 内的服务地址，避免反代后写成内部 HTTP 地址。
+
 ## v1.0.4 - Native macOS DMG Client
 
 ### Highlights
