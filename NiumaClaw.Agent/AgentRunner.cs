@@ -2,12 +2,13 @@ using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace NiumaClaw.Agent;
 
 internal sealed class AgentRunner
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly AgentConfig _config;
     private readonly HttpClient _http = new();
 
@@ -34,18 +35,20 @@ internal sealed class AgentRunner
             try
             {
                 await PostJsonAsync("/api/agent-nodes/heartbeat", new
-                {
-                    platform = Environment.OSVersion.Platform.ToString(),
-                    version = "1.0.0",
-                    capabilities = Capabilities()
-                }, cancellationToken);
+                AgentHeartbeatRequest(
+                    Environment.OSVersion.Platform.ToString(),
+                    "1.0.1",
+                    Capabilities()),
+                    AgentJsonContext.Default.AgentHeartbeatRequest,
+                    cancellationToken);
 
                 Status("待命中");
-                JsonDocument polled = await PostJsonAsync("/api/agent-nodes/jobs/poll", new
-                {
-                    timeoutMs = 25000,
-                    capabilities = Capabilities()
-                }, cancellationToken, timeoutSeconds: 40);
+                JsonDocument polled = await PostJsonAsync(
+                    "/api/agent-nodes/jobs/poll",
+                    new AgentPollRequest(25000, Capabilities()),
+                    AgentJsonContext.Default.AgentPollRequest,
+                    cancellationToken,
+                    timeoutSeconds: 40);
 
                 if (!polled.RootElement.TryGetProperty("job", out JsonElement job)
                     || job.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
@@ -79,21 +82,24 @@ internal sealed class AgentRunner
         Status("执行任务");
         LogLine($"[job {jobId}] {employee}: {Trim(prompt, 180)}");
 
-        await PostJsonAsync($"/api/agent-nodes/jobs/{jobId}/start", new { message = "started" }, cancellationToken, timeoutSeconds: 15);
+        await PostJsonAsync(
+            $"/api/agent-nodes/jobs/{jobId}/start",
+            new AgentJobStartRequest("started"),
+            AgentJsonContext.Default.AgentJobStartRequest,
+            cancellationToken,
+            timeoutSeconds: 15);
         (bool ok, string output, string? error) = await RunCommandAsync(prompt, cancellationToken);
 
-        await PostJsonAsync($"/api/agent-nodes/jobs/{jobId}/finish", new
-        {
-            ok,
-            output = Trim(output, 120000),
-            error,
-            metadata = new
-            {
-                adapter = _config.Adapter,
-                workspace = _config.Workspace,
-                desktopClient = "NiumaClaw.Agent"
-            }
-        }, cancellationToken, timeoutSeconds: 30);
+        await PostJsonAsync(
+            $"/api/agent-nodes/jobs/{jobId}/finish",
+            new AgentJobFinishRequest(
+                ok,
+                Trim(output, 120000),
+                error,
+                new AgentJobMetadata(_config.Adapter, _config.Workspace, "NiumaClaw.Agent")),
+            AgentJsonContext.Default.AgentJobFinishRequest,
+            cancellationToken,
+            timeoutSeconds: 30);
 
         LogLine($"[job {jobId}] {(ok ? "done" : "failed")}");
         if (!string.IsNullOrWhiteSpace(error)) LogLine(error);
@@ -211,7 +217,12 @@ internal sealed class AgentRunner
         return "'" + value.Replace("'", "'\"'\"'", StringComparison.Ordinal) + "'";
     }
 
-    private async Task<JsonDocument> PostJsonAsync(string path, object payload, CancellationToken cancellationToken, int timeoutSeconds = 35)
+    private async Task<JsonDocument> PostJsonAsync<TPayload>(
+        string path,
+        TPayload payload,
+        JsonTypeInfo<TPayload> jsonTypeInfo,
+        CancellationToken cancellationToken,
+        int timeoutSeconds = 35)
     {
         using CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
@@ -219,8 +230,8 @@ internal sealed class AgentRunner
         string url = _config.Server.TrimEnd('/') + path;
         using HttpRequestMessage req = new(HttpMethod.Post, url);
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _config.Token);
-        req.Headers.UserAgent.ParseAdd("NiumaClaw-Agent/1.0.0");
-        req.Content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json");
+        req.Headers.UserAgent.ParseAdd("NiumaClaw-Agent/1.0.1");
+        req.Content = new StringContent(JsonSerializer.Serialize(payload, jsonTypeInfo), Encoding.UTF8, "application/json");
 
         using HttpResponseMessage res = await _http.SendAsync(req, timeoutCts.Token).ConfigureAwait(false);
         string body = await res.Content.ReadAsStringAsync(timeoutCts.Token).ConfigureAwait(false);
@@ -232,17 +243,15 @@ internal sealed class AgentRunner
         return string.IsNullOrWhiteSpace(body) ? JsonDocument.Parse("{}") : JsonDocument.Parse(body);
     }
 
-    private object Capabilities()
+    private AgentCapabilities Capabilities()
     {
-        return new
-        {
-            adapter = _config.Adapter,
-            adapterType = _config.AdapterType,
-            workspace = _config.Workspace,
-            host = Environment.MachineName,
-            platform = Environment.OSVersion.Platform.ToString(),
-            supports = new[] { "chat", "tasks", "terminal", "files", "code", "runner", "desktop-ui" }
-        };
+        return new AgentCapabilities(
+            _config.Adapter,
+            _config.AdapterType,
+            _config.Workspace,
+            Environment.MachineName,
+            Environment.OSVersion.Platform.ToString(),
+            new[] { "chat", "tasks", "terminal", "files", "code", "runner", "desktop-ui" });
     }
 
     private static string GetString(JsonElement root, string name, string fallback)
@@ -279,4 +288,31 @@ internal sealed class AgentRunner
     {
         StatusChanged?.Invoke(status);
     }
+}
+
+internal sealed record AgentCapabilities(
+    string Adapter,
+    string AdapterType,
+    string Workspace,
+    string Host,
+    string Platform,
+    string[] Supports);
+
+internal sealed record AgentHeartbeatRequest(string Platform, string Version, AgentCapabilities Capabilities);
+
+internal sealed record AgentPollRequest(int TimeoutMs, AgentCapabilities Capabilities);
+
+internal sealed record AgentJobStartRequest(string Message);
+
+internal sealed record AgentJobMetadata(string Adapter, string Workspace, string DesktopClient);
+
+internal sealed record AgentJobFinishRequest(bool Ok, string Output, string? Error, AgentJobMetadata Metadata);
+
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(AgentHeartbeatRequest))]
+[JsonSerializable(typeof(AgentPollRequest))]
+[JsonSerializable(typeof(AgentJobStartRequest))]
+[JsonSerializable(typeof(AgentJobFinishRequest))]
+internal sealed partial class AgentJsonContext : JsonSerializerContext
+{
 }

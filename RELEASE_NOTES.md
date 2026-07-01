@@ -1,5 +1,13 @@
 # Release Notes
 
+## v1.0.15 - Native Desktop App Repair
+
+### Highlights
+
+- 修复 macOS 账号专属 DMG 把配置写入已签名 `.app` 导致 “NiumaClaw Agent 已损坏，无法打开” 的问题。
+- macOS DMG 改为标准安装盘结构，包含真实 `NiumaClaw Agent.app`、`Applications` 快捷方式、首次打开说明和应用图标。
+- 桌面端会从 DMG 根目录或已挂载的 NiumaClaw 卷读取账号配置，并自动保存到用户配置目录，后续可作为真正桌面应用持续运行。
+
 ## v1.0.14 - Stable Browser Home Download
 
 ### Highlights

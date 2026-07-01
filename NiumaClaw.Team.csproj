@@ -4,9 +4,9 @@
     <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <Version>1.0.14</Version>
-    <FileVersion>1.0.14.0</FileVersion>
-    <InformationalVersion>1.0.14+native-desktop-download-fix.20260701</InformationalVersion>
+    <Version>1.0.15</Version>
+    <FileVersion>1.0.15.0</FileVersion>
+    <InformationalVersion>1.0.15+native-desktop-app-fix.20260701</InformationalVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 

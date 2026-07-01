@@ -51,6 +51,7 @@ internal sealed record AgentConfig(
             }
 
             config = new AgentConfig(server, token, nodeId, adapter, adapterType, deviceName, ExpandWorkspace(workspace));
+            PersistConfigJson(json);
             return true;
         }
         catch (Exception ex)
@@ -68,16 +69,7 @@ internal sealed record AgentConfig(
 
     private static string? LoadJsonFromKnownFiles()
     {
-        string baseDir = AppContext.BaseDirectory;
-        string[] candidates =
-        [
-            Path.Combine(baseDir, "client.json"),
-            Path.Combine(baseDir, "NiumaClaw Agent.config.b64"),
-            Path.GetFullPath(Path.Combine(baseDir, "..", "Resources", "NiumaClaw Agent.config.b64")),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NiumaClawAgent", "client.json")
-        ];
-
-        foreach (string path in candidates)
+        foreach (string path in KnownConfigPaths())
         {
             if (!File.Exists(path)) continue;
             string text = File.ReadAllText(path, Encoding.UTF8).Trim();
@@ -87,6 +79,69 @@ internal sealed record AgentConfig(
         }
 
         return null;
+    }
+
+    private static IEnumerable<string> KnownConfigPaths()
+    {
+        string baseDir = AppContext.BaseDirectory;
+        yield return Path.Combine(baseDir, "client.json");
+        yield return Path.Combine(baseDir, "NiumaClaw Agent.config.b64");
+        yield return Path.GetFullPath(Path.Combine(baseDir, "..", "Resources", "NiumaClaw Agent.config.b64"));
+        yield return Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "client.json"));
+        yield return Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "NiumaClaw Agent.config.b64"));
+
+        foreach (string path in MountedVolumeConfigPaths())
+        {
+            yield return path;
+        }
+
+        yield return AppDataConfigPath();
+    }
+
+    private static IEnumerable<string> MountedVolumeConfigPaths()
+    {
+        if (!OperatingSystem.IsMacOS()) yield break;
+        const string volumesRoot = "/Volumes";
+        if (!Directory.Exists(volumesRoot)) yield break;
+
+        IEnumerable<DirectoryInfo> volumes;
+        try
+        {
+            volumes = new DirectoryInfo(volumesRoot)
+                .EnumerateDirectories("NiumaClaw Agent*")
+                .OrderByDescending(d => d.LastWriteTimeUtc)
+                .ToArray();
+        }
+        catch
+        {
+            yield break;
+        }
+
+        foreach (DirectoryInfo volume in volumes)
+        {
+            yield return Path.Combine(volume.FullName, "client.json");
+            yield return Path.Combine(volume.FullName, "NiumaClaw Agent.config.b64");
+        }
+    }
+
+    private static void PersistConfigJson(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return;
+        try
+        {
+            string path = AppDataConfigPath();
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, json, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        }
+        catch
+        {
+            // A mounted DMG config is enough to run; persistence is best effort.
+        }
+    }
+
+    private static string AppDataConfigPath()
+    {
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "NiumaClawAgent", "client.json");
     }
 
     private static string? LoadJsonFromExecutableTail()
