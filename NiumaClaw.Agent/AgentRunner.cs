@@ -37,7 +37,7 @@ internal sealed class AgentRunner
                 await PostJsonAsync("/api/agent-nodes/heartbeat", new
                 AgentHeartbeatRequest(
                     Environment.OSVersion.Platform.ToString(),
-                    "1.0.2",
+                    "1.0.4",
                     Capabilities()),
                     AgentJsonContext.Default.AgentHeartbeatRequest,
                     cancellationToken);
@@ -122,7 +122,7 @@ internal sealed class AgentRunner
         using CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(TimeSpan.FromMinutes(30));
 
-        ProcessStartInfo psi = BuildShellStartInfo(command);
+        ProcessStartInfo psi = BuildShellStartInfo(command, _config.Workspace);
         StringBuilder output = new();
 
         using Process process = new() { StartInfo = psi, EnableRaisingEvents = true };
@@ -168,20 +168,20 @@ internal sealed class AgentRunner
             {
                 "hermes" => "hermes {prompt}",
                 "claude" => "claude -p {prompt}",
-                _ => "codex exec {prompt}"
+                _ => "codex exec --skip-git-repo-check --cd {workspace} {prompt}"
             };
         }
 
-        return template.Contains("{prompt}", StringComparison.Ordinal)
-            ? template.Replace("{prompt}", QuoteArgument(prompt), StringComparison.Ordinal)
-            : template;
+        return template
+            .Replace("{workspace}", QuoteArgument(_config.Workspace), StringComparison.Ordinal)
+            .Replace("{prompt}", QuoteArgument(prompt), StringComparison.Ordinal);
     }
 
-    private static ProcessStartInfo BuildShellStartInfo(string command)
+    private static ProcessStartInfo BuildShellStartInfo(string command, string workspace)
     {
         if (OperatingSystem.IsWindows())
         {
-            return new ProcessStartInfo("cmd.exe", "/c " + command)
+            ProcessStartInfo psi = new ProcessStartInfo("cmd.exe")
             {
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
@@ -190,9 +190,15 @@ internal sealed class AgentRunner
                 StandardOutputEncoding = Encoding.UTF8,
                 StandardErrorEncoding = Encoding.UTF8
             };
+            psi.ArgumentList.Add("/d");
+            psi.ArgumentList.Add("/s");
+            psi.ArgumentList.Add("/c");
+            psi.ArgumentList.Add(command);
+            ApplyWorkingDirectory(psi, workspace);
+            return psi;
         }
 
-        return new ProcessStartInfo("/bin/bash", "-lc " + QuoteUnix(command))
+        ProcessStartInfo unixPsi = new ProcessStartInfo("/bin/bash")
         {
             UseShellExecute = false,
             RedirectStandardOutput = true,
@@ -200,6 +206,24 @@ internal sealed class AgentRunner
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
+        unixPsi.ArgumentList.Add("-lc");
+        unixPsi.ArgumentList.Add(command);
+        ApplyWorkingDirectory(unixPsi, workspace);
+        return unixPsi;
+    }
+
+    private static void ApplyWorkingDirectory(ProcessStartInfo psi, string workspace)
+    {
+        if (string.IsNullOrWhiteSpace(workspace)) return;
+        try
+        {
+            Directory.CreateDirectory(workspace);
+            psi.WorkingDirectory = workspace;
+        }
+        catch
+        {
+            // Keep the runner alive; the command itself will report a clearer error if needed.
+        }
     }
 
     private static string QuoteArgument(string value)
@@ -230,7 +254,7 @@ internal sealed class AgentRunner
         string url = _config.Server.TrimEnd('/') + path;
         using HttpRequestMessage req = new(HttpMethod.Post, url);
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _config.Token);
-        req.Headers.UserAgent.ParseAdd("NiumaClaw-Agent/1.0.2");
+        req.Headers.UserAgent.ParseAdd("NiumaClaw-Agent/1.0.4");
         req.Content = new StringContent(JsonSerializer.Serialize(payload, jsonTypeInfo), Encoding.UTF8, "application/json");
 
         using HttpResponseMessage res = await _http.SendAsync(req, timeoutCts.Token).ConfigureAwait(false);

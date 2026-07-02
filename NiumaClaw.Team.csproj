@@ -4,9 +4,9 @@
     <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <Version>1.0.17</Version>
-    <FileVersion>1.0.17.0</FileVersion>
-    <InformationalVersion>1.0.17+static-generated-downloads.20260702</InformationalVersion>
+    <Version>1.0.20</Version>
+    <FileVersion>1.0.20.0</FileVersion>
+    <InformationalVersion>1.0.20+runner-bind-safety.20260702</InformationalVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 

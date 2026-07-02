@@ -1,5 +1,29 @@
 # Release Notes
 
+## v1.0.20 - Runner Bind Safety
+
+### Highlights
+
+- 绑定员工时必须等选中的桌面客户端节点自己心跳在线，避免刚下载的新客户端还没启动时误绑回旧的在线节点。
+- 派工时仍保留同类型在线 Runner 兜底，已绑定节点短暂掉线时不会让任务一直卡在“正在处理”。
+
+## v1.0.19 - Desktop Runner Reliability
+
+### Highlights
+
+- 客户端安装包每次生成独立节点，避免重复下载覆盖旧节点 token 后导致桌面 Agent 401、无法取任务。
+- 派工和绑定员工时只使用最近在线的本机 Runner，离线节点会给出明确错误，不再假装“正在处理”。
+- Codex 桌面 Agent 默认在配置工作区执行，并使用 `codex exec --skip-git-repo-check --cd ...` 适配非 git 工作区。
+- 修正 macOS/Windows 桌面 Agent 启动 shell 命令的参数传递，避免 prompt 中的引号或中文内容导致 `bash -lc` 解析失败。
+
+## v1.0.18 - Runner Token Stability
+
+### Highlights
+
+- 客户端安装包每次生成独立节点，避免重复下载覆盖旧节点 token 后导致桌面 Agent 401、无法取任务。
+- 派工和绑定员工时只使用最近在线的本机 Runner，离线节点会给出明确错误，不再假装“正在处理”。
+- Codex 桌面 Agent 默认在配置工作区执行，并使用 `codex exec --skip-git-repo-check --cd ...` 适配非 git 工作区。
+
 ## v1.0.17 - Static Generated Client Downloads
 
 ### Highlights

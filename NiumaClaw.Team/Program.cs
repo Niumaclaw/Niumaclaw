@@ -402,6 +402,25 @@ internal class Program
 		return (url ?? string.Empty).Trim().StartsWith("agent-node://", StringComparison.OrdinalIgnoreCase);
 	}
 
+	private static string BuildClientPackageDeviceId(string platformPrefix, string adapterType, string? requestedDeviceId)
+	{
+		string baseId = string.IsNullOrWhiteSpace(requestedDeviceId)
+			? platformPrefix + "-" + adapterType
+			: requestedDeviceId.Trim();
+		return SanitizeAgentDeviceId(baseId) + "-" + NewToken().Substring(0, 10);
+	}
+
+	private static string SanitizeAgentDeviceId(string value)
+	{
+		StringBuilder builder = new StringBuilder(value.Length);
+		foreach (char ch in value)
+		{
+			builder.Append(char.IsLetterOrDigit(ch) || ch == '-' || ch == '_' || ch == '.' ? ch : '-');
+		}
+		string text = builder.ToString().Trim('-', '_', '.');
+		return string.IsNullOrWhiteSpace(text) ? "desktop-client" : text;
+	}
+
 	private static string? ReadBearerToken(HttpListenerRequest req)
 	{
 		string text = req.Headers["Authorization"] ?? string.Empty;
@@ -1282,6 +1301,7 @@ internal class Program
 			{
 				throw new InvalidOperationException("agent node does not belong to current account");
 			}
+			nodeId = await ResolveOnlineAgentNodeIdAsync(conn, accountId, nodeId, adapterType, allowCompatibleFallback: true);
 			AgentJobRecord agentJobRecord;
 			await using (NpgsqlCommand cmd = new NpgsqlCommand("INSERT INTO agent_jobs(account_id, node_id, employee_name, adapter_type, status, prompt, payload_json, board_task_id)\nVALUES (@account_id, @node_id, @employee_name, @adapter_type, 'queued', @prompt, @payload::jsonb, @board_task_id)\nRETURNING id", conn))
 			{
@@ -1308,6 +1328,23 @@ internal class Program
 			result = agentJobRecord;
 		}
 		return result;
+	}
+
+	private static async Task<long> ResolveOnlineAgentNodeIdAsync(NpgsqlConnection conn, Guid accountId, long preferredNodeId, string adapterType, bool allowCompatibleFallback)
+	{
+		string runner = RunnerCommandAdapter(adapterType);
+		await using NpgsqlCommand cmd = new NpgsqlCommand("SELECT id\nFROM agent_nodes\nWHERE account_id = @account_id\n  AND last_seen_at IS NOT NULL\n  AND last_seen_at > now() - interval '90 seconds'\n  AND (\n      id = @preferred_node_id\n      OR (\n          @allow_compatible_fallback\n          AND (\n              capabilities_json ->> 'adapterType' = @adapter_type\n              OR capabilities_json ->> 'adapter' = @adapter_type\n              OR capabilities_json ->> 'adapter' = @runner\n          )\n      )\n  )\nORDER BY CASE WHEN id = @preferred_node_id THEN 0 ELSE 1 END,\n         last_seen_at DESC,\n         updated_at DESC,\n         id DESC\nLIMIT 1", conn);
+		cmd.Parameters.AddWithValue("account_id", accountId);
+		cmd.Parameters.AddWithValue("preferred_node_id", preferredNodeId);
+		cmd.Parameters.AddWithValue("adapter_type", adapterType);
+		cmd.Parameters.AddWithValue("runner", runner);
+		cmd.Parameters.AddWithValue("allow_compatible_fallback", allowCompatibleFallback);
+		object? value = await cmd.ExecuteScalarAsync();
+		if (value == null || value == DBNull.Value)
+		{
+			throw new InvalidOperationException("local runner is offline; open the matching desktop client and wait until it shows connected");
+		}
+		return Convert.ToInt64(value);
 	}
 
 	private static async Task<AgentJobRecord?> WaitForAgentJobAsync(Guid accountId, long jobId, TimeSpan timeout)
@@ -1964,7 +2001,7 @@ internal class Program
 			};
 			(long NodeId, string Token, AgentNodeClientPayload Node) registered = await RegisterAgentNodeAsync(account.AccountId, new AgentNodeRegisterRequest
 			{
-				DeviceId = (string.IsNullOrWhiteSpace(agentNodeClientPackageRequest.DeviceId) ? ("macos-client-" + adapterType + "-" + NewToken().Substring(0, 8)) : agentNodeClientPackageRequest.DeviceId.Trim()),
+				DeviceId = BuildClientPackageDeviceId("macos-client", adapterType, agentNodeClientPackageRequest.DeviceId),
 				DeviceName = deviceName,
 				Platform = "macos-client",
 				Version = "1",
@@ -2018,7 +2055,7 @@ internal class Program
 			};
 			(long NodeId, string Token, AgentNodeClientPayload Node) registered = await RegisterAgentNodeAsync(account.AccountId, new AgentNodeRegisterRequest
 			{
-				DeviceId = (string.IsNullOrWhiteSpace(agentNodeClientPackageRequest.DeviceId) ? ("desktop-client-" + adapterType + "-" + NewToken().Substring(0, 8)) : agentNodeClientPackageRequest.DeviceId.Trim()),
+				DeviceId = BuildClientPackageDeviceId("desktop-client", adapterType, agentNodeClientPackageRequest.DeviceId),
 				DeviceName = deviceName,
 				Platform = "desktop-client",
 				Version = "1",
@@ -2070,7 +2107,7 @@ internal class Program
 				};
 				(long NodeId, string Token, AgentNodeClientPayload Node) registered = await RegisterAgentNodeAsync(account.AccountId, new AgentNodeRegisterRequest
 				{
-					DeviceId = (string.IsNullOrWhiteSpace(agentNodeClientPackageRequest2.DeviceId) ? ("windows-client-" + adapterType + "-" + NewToken().Substring(0, 8)) : agentNodeClientPackageRequest2.DeviceId.Trim()),
+					DeviceId = BuildClientPackageDeviceId("windows-client", adapterType, agentNodeClientPackageRequest2.DeviceId),
 					DeviceName = deviceName,
 					Platform = "windows-desktop-client",
 					Version = "1",
@@ -2119,6 +2156,8 @@ internal class Program
 				await WriteJsonAsync(res, "{\"error\":\"invalid_payload\"}", 400);
 				return true;
 			}
+			string workspacePath = NormalizeAgentAdapterType(payload2.AdapterType);
+			long resolvedNodeId;
 			await using (NpgsqlConnection conn = await OpenDatabaseAsync())
 			{
 				if (!(await AgentNodeBelongsToAccountAsync(conn, account.AccountId, payload2.NodeId)))
@@ -2126,8 +2165,16 @@ internal class Program
 					await WriteJsonAsync(res, "{\"error\":\"node_not_found\"}", 404);
 					return true;
 				}
+				try
+				{
+					resolvedNodeId = await ResolveOnlineAgentNodeIdAsync(conn, account.AccountId, payload2.NodeId, workspacePath, allowCompatibleFallback: false);
+				}
+				catch (InvalidOperationException)
+				{
+					await WriteJsonAsync(res, "{\"error\":\"runner_offline\",\"message\":\"请先打开对应桌面客户端，等它显示已连接后再绑定员工。\"}", 409);
+					return true;
+				}
 			}
-			string workspacePath = NormalizeAgentAdapterType(payload2.AdapterType);
 			AppConfig appConfig = await LoadAccountConfigAsync(account.AccountId);
 			if (!appConfig.PeerNodes.TryGetValue(adapterType, out NodeInfo value) || value == null)
 			{
@@ -2141,7 +2188,7 @@ internal class Program
 			}
 			value.Name = (string.IsNullOrWhiteSpace(value.Name) ? adapterType : value.Name);
 			value.AdapterType = workspacePath;
-			value.Url = $"agent-node://{payload2.NodeId}/{workspacePath}";
+			value.Url = $"agent-node://{resolvedNodeId}/{workspacePath}";
 			NodeInfo nodeInfo = value;
 			nodeInfo.Capabilities = workspacePath switch
 			{
@@ -2155,7 +2202,7 @@ internal class Program
 			{
 				nodeInfo.AdapterConfig = new Dictionary<string, JsonElement>();
 			}
-			value.AdapterConfig["nodeId"] = JsonNumberElement(payload2.NodeId);
+			value.AdapterConfig["nodeId"] = JsonNumberElement(resolvedNodeId);
 			value.AdapterConfig["adapterType"] = JsonStringElement(workspacePath);
 			if (!string.IsNullOrWhiteSpace(payload2.WorkspacePath))
 			{
