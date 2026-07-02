@@ -11,9 +11,10 @@
 ## 2. 下载桌面端
 
 1. 点击首页顶部的“下载客户端”。
-2. 选择要接入的工具：Codex、Hermes 或 Claude Code。
-3. Windows 点击“下载 Windows 安装包”，macOS 点击“下载 macOS DMG”。
-4. 下载后打开安装包，启动 `NiumaClaw Agent`。
+2. Windows 点击“下载 Windows 桌面端”，macOS 点击“下载 macOS DMG”。
+3. 下载后打开安装包，启动 `NiumaClaw Agent`。
+
+完整安装步骤见 [macOS / Windows 安装教程](INSTALLATION_GUIDE.md)。
 
 提示：macOS 未公证版本可能会被系统拦截，需要右键打开。正式商业发布前应完成 Developer ID 签名和 notarization。
 
@@ -23,6 +24,8 @@
 2. 首次启动会检查服务器、工作区、Codex/Hermes/Claude Code 命令、Git、Node、Python。
 3. 检查通过后保持桌面端窗口打开。
 4. 回到网页端刷新“下载客户端”弹窗，看到“已发现在线客户端”即连接成功。
+
+如果准备用 Codex 执行任务，请先完成 [Codex CLI 安装与登录说明](CODEX_CLI_SETUP.md)。
 
 ## 4. 绑定员工并派工
 
@@ -46,6 +49,8 @@
 - `codex: command not found`：在终端先确认 `codex --version` 可用，再重启桌面端。
 - 工作区不可写：把工作区改到用户目录下，例如 `~/NiumaClawWorkspace`。
 - 节点不可用：在智能体面板里解绑旧节点，重新下载客户端并绑定。
+
+更多处理方法见 [常见问题](FAQ.md)。
 
 ## 试用验收
 

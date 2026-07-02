@@ -42,7 +42,10 @@ http://localhost:4050/
 
 ## 试用上手
 
-[5 分钟快速开始](docs/QUICKSTART_5_MINUTES.md)
+- [5 分钟快速开始](docs/QUICKSTART_5_MINUTES.md)
+- [macOS / Windows 安装教程](docs/INSTALLATION_GUIDE.md)
+- [Codex CLI 安装与登录说明](docs/CODEX_CLI_SETUP.md)
+- [常见问题](docs/FAQ.md)
 
 ## 参与项目
 

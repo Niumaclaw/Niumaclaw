@@ -1,5 +1,14 @@
 # Release Notes
 
+## v1.0.27 - Commercial MVP Trial Docs
+
+### Highlights
+
+- 新增 macOS / Windows 安装教程，覆盖下载、安装、首次打开、连接校验、卸载和重新绑定。
+- 新增 Codex CLI 安装与登录说明，降低桌面端执行 Codex 任务时 `codex: command not found` 的试用卡点。
+- 新增常见问题文档，集中处理打不开、无法连接、命令找不到、下载慢、任务无回复和节点重绑问题。
+- 下载客户端弹窗新增 5 分钟快速开始、安装教程、Codex CLI、常见问题和提交反馈入口。
+
 ## v1.0.26 - Commercial MVP Controls
 
 ### Highlights
