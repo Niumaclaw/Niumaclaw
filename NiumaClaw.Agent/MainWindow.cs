@@ -10,12 +10,16 @@ internal sealed class MainWindow : Window
 {
     private readonly TextBlock _statusText;
     private readonly TextBlock _metaText;
+    private readonly TextBlock _diagnosticsText;
     private readonly TextBox _logBox;
     private readonly Button _startButton;
     private readonly Button _stopButton;
+    private readonly Button _diagnosticsButton;
     private CancellationTokenSource? _runnerCts;
+    private CancellationTokenSource? _diagnosticsCts;
     private AgentRunner? _runner;
     private AgentConfig? _config;
+    private bool _lastDiagnosticsPassed;
 
     public MainWindow()
     {
@@ -38,6 +42,14 @@ internal sealed class MainWindow : Window
             TextWrapping = TextWrapping.Wrap,
             Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105))
         };
+        _diagnosticsText = new TextBlock
+        {
+            Text = "等待环境诊断...",
+            TextWrapping = TextWrapping.Wrap,
+            FontFamily = FontFamily.Parse("Menlo, Consolas, monospace"),
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Color.FromRgb(51, 65, 85))
+        };
         _logBox = new TextBox
         {
             IsReadOnly = true,
@@ -58,6 +70,11 @@ internal sealed class MainWindow : Window
             Foreground = Brushes.White,
             FontWeight = FontWeight.Bold
         };
+        _diagnosticsButton = new Button
+        {
+            Content = "重新诊断",
+            Padding = new Thickness(16, 9)
+        };
         _stopButton = new Button
         {
             Content = "停止",
@@ -65,34 +82,40 @@ internal sealed class MainWindow : Window
             IsEnabled = false
         };
 
-        _startButton.Click += (_, _) => StartRunner();
+        _startButton.Click += async (_, _) => await StartRunnerFromButtonAsync();
+        _diagnosticsButton.Click += async (_, _) => await RunDiagnosticsAsync(startWhenOk: false);
         _stopButton.Click += (_, _) => StopRunner();
-        Closed += (_, _) => StopRunner();
+        Closed += (_, _) =>
+        {
+            _diagnosticsCts?.Cancel();
+            StopRunner();
+        };
 
         Content = BuildLayout();
     }
 
-    protected override void OnOpened(EventArgs e)
+    protected override async void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
         if (!AgentConfig.TryLoad(out _config, out string error) || _config == null)
         {
             _statusText.Text = "缺少配置";
             _metaText.Text = error;
+            _diagnosticsText.Text = "[FAIL] 客户端配置: " + error;
             AppendLog(error);
             SetRunnerButtons(isRunning: false, canStart: false);
             return;
         }
 
         _metaText.Text = $"{_config.DeviceName} / 节点 {_config.NodeId}\n{_config.Server}\n工作区：{_config.Workspace}";
-        StartRunner();
+        await RunDiagnosticsAsync(startWhenOk: true);
     }
 
     private Control BuildLayout()
     {
         Grid root = new()
         {
-            RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,*,Auto"),
             Margin = new Thickness(24),
             RowSpacing = 16
         };
@@ -132,9 +155,21 @@ internal sealed class MainWindow : Window
         };
         root.Children.Add(info);
 
-        Border logPanel = new()
+        Border diagnosticsPanel = new()
         {
             [Grid.RowProperty] = 2,
+            Padding = new Thickness(12),
+            CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(Color.FromRgb(248, 250, 252)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(203, 213, 225)),
+            BorderThickness = new Thickness(1),
+            Child = _diagnosticsText
+        };
+        root.Children.Add(diagnosticsPanel);
+
+        Border logPanel = new()
+        {
+            [Grid.RowProperty] = 3,
             Padding = new Thickness(12),
             CornerRadius = new CornerRadius(8),
             Background = Brushes.White,
@@ -146,15 +181,81 @@ internal sealed class MainWindow : Window
 
         StackPanel buttons = new()
         {
-            [Grid.RowProperty] = 3,
+            [Grid.RowProperty] = 4,
             Orientation = Orientation.Horizontal,
             HorizontalAlignment = HorizontalAlignment.Right,
             Spacing = 10,
-            Children = { _startButton, _stopButton }
+            Children = { _diagnosticsButton, _startButton, _stopButton }
         };
         root.Children.Add(buttons);
 
         return root;
+    }
+
+    private async Task StartRunnerFromButtonAsync()
+    {
+        if (_config == null || _runnerCts != null) return;
+        if (!_lastDiagnosticsPassed)
+        {
+            await RunDiagnosticsAsync(startWhenOk: true);
+            return;
+        }
+
+        StartRunner();
+    }
+
+    private async Task RunDiagnosticsAsync(bool startWhenOk)
+    {
+        if (_config == null || _runnerCts != null) return;
+
+        _diagnosticsCts?.Cancel();
+        _diagnosticsCts?.Dispose();
+        _diagnosticsCts = new CancellationTokenSource();
+        CancellationToken cancellationToken = _diagnosticsCts.Token;
+
+        SetRunnerButtons(isRunning: false, canStart: false);
+        _diagnosticsButton.IsEnabled = false;
+        _statusText.Text = "诊断中";
+        _diagnosticsText.Text = "正在检查服务器、工作区、Agent 命令和本机工具...";
+        AppendLog("开始环境诊断。");
+
+        try
+        {
+            AgentDiagnosticsReport report = await AgentDiagnostics.RunAsync(_config, cancellationToken);
+            _lastDiagnosticsPassed = !report.HasBlockingFailures;
+            _diagnosticsText.Text = report.ToDisplayText();
+            AppendLog("环境诊断完成：" + (_lastDiagnosticsPassed ? "通过" : "未通过"));
+
+            if (!_lastDiagnosticsPassed)
+            {
+                _statusText.Text = "诊断未通过";
+                SetRunnerButtons(isRunning: false, canStart: false);
+                return;
+            }
+
+            _statusText.Text = "诊断通过";
+            SetRunnerButtons(isRunning: false, canStart: true);
+            if (startWhenOk)
+            {
+                StartRunner();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            AppendLog("环境诊断已取消。");
+        }
+        catch (Exception ex)
+        {
+            _lastDiagnosticsPassed = false;
+            _statusText.Text = "诊断失败";
+            _diagnosticsText.Text = "[FAIL] 环境诊断: " + ex.Message;
+            AppendLog("环境诊断失败：" + ex.Message);
+            SetRunnerButtons(isRunning: false, canStart: false);
+        }
+        finally
+        {
+            _diagnosticsButton.IsEnabled = _config != null;
+        }
     }
 
     private void StartRunner()
@@ -180,7 +281,7 @@ internal sealed class MainWindow : Window
                     _runnerCts?.Dispose();
                     _runnerCts = null;
                     _runner = null;
-                    SetRunnerButtons(isRunning: false, canStart: _config != null);
+                    SetRunnerButtons(isRunning: false, canStart: _config != null && _lastDiagnosticsPassed);
                     _statusText.Text = "已停止";
                 });
             }

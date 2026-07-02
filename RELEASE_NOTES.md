@@ -1,5 +1,14 @@
 # Release Notes
 
+## v1.0.24 - MVP Diagnostics
+
+### Highlights
+
+- 本机 Runner 的 `/api/chat` 同步回复也会复用工作日志的最终结果清洗逻辑，避免把 Codex CLI 元信息展示给老板端。
+- 桌面 Agent 升级到 `1.0.6`，启动前自动诊断服务器连接、节点 token、工作区读写、Codex/Claude/Hermes 命令、Git、Node、Python 和有效 PATH。
+- 桌面 Agent 诊断失败时不再允许直接启动，并在窗口内给出明确修复方向，降低首次试用卡点。
+- macOS 客户端打包脚本接入 Developer ID hardened runtime 签名、`notarytool submit --wait`、`stapler` 和 entitlements，具备正式签名/公证发布流程。
+
 ## v1.0.23 - Runner Worklog History
 
 ### Highlights

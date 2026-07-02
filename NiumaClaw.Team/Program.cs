@@ -6461,7 +6461,7 @@ internal class Program
 							}, AppJsonContext.Default.ChatResponse) + "|||END|||");
 							AgentJobRecord agentJobRecord = await WaitForAgentJobAsync(account.AccountId, job.Id, TimeSpan.FromSeconds(30L));
 							string text9 = agentJobRecord?.Status;
-							string text2 = ((text9 == "succeeded") ? (string.IsNullOrWhiteSpace(agentJobRecord.Result) ? "本机 Agent 已完成执行。" : agentJobRecord.Result) : ((!(text9 == "failed")) ? "本机 Agent 已接收任务，仍在执行中。稍后打开员工工作日志或项目看板查看结果。" : ("本机 Agent 执行失败：" + (agentJobRecord.Error ?? agentJobRecord.Result ?? "未知错误"))));
+							string text2 = ((text9 == "succeeded") ? BuildAgentJobHistoryAssistantContent(agentJobRecord) : ((!(text9 == "failed")) ? "本机 Agent 已接收任务，仍在执行中。稍后打开员工工作日志或项目看板查看结果。" : BuildAgentJobHistoryAssistantContent(agentJobRecord)));
 							string content = text2;
 							string text10 = JsonSerializer.Serialize(new ChatResponse
 							{

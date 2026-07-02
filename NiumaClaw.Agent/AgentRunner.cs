@@ -9,7 +9,7 @@ namespace NiumaClaw.Agent;
 
 internal sealed class AgentRunner
 {
-    private const string AgentVersion = "1.0.5";
+    internal const string AgentVersion = "1.0.6";
 
     private readonly AgentConfig _config;
     private readonly HttpClient _http = new();
@@ -218,12 +218,23 @@ internal sealed class AgentRunner
 
     private static void ApplyRunnerEnvironment(ProcessStartInfo psi)
     {
-        char separator = OperatingSystem.IsWindows() ? ';' : ':';
-        StringComparer comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
         string currentPath = psi.Environment.TryGetValue("PATH", out string? existingPath)
             ? existingPath ?? string.Empty
             : Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+        psi.Environment["PATH"] = BuildEffectivePath(currentPath);
+    }
 
+    internal static string BuildEffectivePath(string? currentPath = null)
+    {
+        char separator = OperatingSystem.IsWindows() ? ';' : ':';
+        return string.Join(separator, BuildEffectivePathEntries(currentPath));
+    }
+
+    internal static IReadOnlyList<string> BuildEffectivePathEntries(string? currentPath = null)
+    {
+        char separator = OperatingSystem.IsWindows() ? ';' : ':';
+        StringComparer comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        string pathValue = currentPath ?? Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
         List<string> parts = new();
         HashSet<string> seen = new(comparer);
         foreach (string path in GetPreferredPathEntries())
@@ -231,12 +242,12 @@ internal sealed class AgentRunner
             AddPathPart(path);
         }
 
-        foreach (string path in currentPath.Split(separator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (string path in pathValue.Split(separator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             AddPathPart(path);
         }
 
-        psi.Environment["PATH"] = string.Join(separator, parts);
+        return parts;
 
         void AddPathPart(string value)
         {
@@ -247,7 +258,18 @@ internal sealed class AgentRunner
         }
     }
 
-    private static IEnumerable<string> GetPreferredPathEntries()
+    internal static string RequiredCommandName(string adapter)
+    {
+        return adapter.Trim().ToLowerInvariant() switch
+        {
+            "hermes" => "hermes",
+            "claude" => "claude",
+            "echo" => "echo",
+            _ => "codex"
+        };
+    }
+
+    internal static IEnumerable<string> GetPreferredPathEntries()
     {
         if (OperatingSystem.IsWindows())
         {
