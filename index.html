@@ -812,6 +812,11 @@
             padding: 15px 20px; background: #f8f9fa; border-bottom: 1px solid #eee;
             display: flex; justify-content: space-between; align-items: center;
         }
+        .report-header-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+        .report-header-action-btn { border:1px solid #bfdbfe; border-radius:8px; padding:7px 10px; background:#eff6ff; color:#1d4ed8; font-weight:800; cursor:pointer; font-size:12px; }
+        .report-header-action-btn.secondary { background:#f8fafc; border-color:#cbd5e1; color:#334155; }
+        .report-header-action-btn:hover { filter:brightness(0.98); transform:translateY(-1px); }
+        @media (max-width: 640px) { .report-header { align-items:flex-start; gap:10px; } .report-header-actions { max-width:58%; } .report-header-action-btn { padding:6px 8px; } }
         .report-body {
             padding: 20px; overflow-y: auto; flex: 1; font-family: sans-serif; line-height: 1.6; color: #333;
         }
@@ -1822,7 +1827,11 @@
         <div class="report-content">
             <div class="report-header">
                 <h3 id="reportTitle" style="margin:0; color:#333;">📘 工作报告</h3>
-                <button onclick="closeModal('reportModal')" style="border:none; background:none; font-size:20px; cursor:pointer; color:#666;">✕</button>
+                <div class="report-header-actions">
+                    <button type="button" class="report-header-action-btn" onclick="copyOpenWorklogMarkdown()">复制日志</button>
+                    <button type="button" class="report-header-action-btn secondary" onclick="downloadOpenWorklogMarkdown()">导出 Markdown</button>
+                    <button onclick="closeModal('reportModal')" style="border:none; background:none; font-size:20px; cursor:pointer; color:#666;">✕</button>
+                </div>
             </div>
             <div class="report-body" id="reportMarkdown"></div>
             <div id="agentRuntimePanel" style="display:none;"></div>
@@ -3467,12 +3476,13 @@
             panel.innerHTML = wrapAgentPanelContent('<div class="agent-inline-note">正在加载员工档案、记忆和运行记录...</div>');
 
             try {
-                const [profile, runs, heartbeats, routineHistory, routines] = await Promise.all([
+                const [profile, runs, heartbeats, routineHistory, routines, agentNodes] = await Promise.all([
                     fetchAgentJsonSafe('/api/agent/profile?user=' + encodeURIComponent(empName)),
                     fetchAgentJsonSafe('/api/agent/runs?user=' + encodeURIComponent(empName)),
                     fetch('/api/heartbeat').then(r => r.ok ? r.json() : {}),
                     fetch('/api/routines/history').then(r => r.ok ? r.json() : []),
-                    fetch('/api/routines').then(r => r.ok ? r.json() : [])
+                    fetch('/api/routines').then(r => r.ok ? r.json() : []),
+                    loadAgentNodes().catch(() => [])
                 ]);
 
                 window.agentRunCacheByEmployee = window.agentRunCacheByEmployee || {};
@@ -3528,6 +3538,7 @@
                     ? '点击处理异常：可直接从工位气泡进入快捷菜单。'
                     : '点击处理异常：当前无异常';
                 const identitySummary = renderAgentIdentitySummary(profile, empName);
+                const clientNodeSection = renderAgentClientNodeSection(empName, configNode, agentNodes);
                 const capabilitySection = renderAgentCapabilitySection(profile);
                 const budgetSummary = renderAgentBudgetSection(budgetMonthly, budgetUsed, budgetStatusText, budgetLevel, latestRunCost, latestRunCurrency, latestRunModel, latestRunProvider, latestInputTokens, latestOutputTokens);
                 const healthSummary = renderAgentHealthSection(healthInfo, heartbeatStatus, heartbeatMessage, lastHeartbeat);
@@ -3565,7 +3576,7 @@
                         <div class="agent-runtime-card">
                             <strong>员工档案</strong>
                             <div class="agent-inline-note" style="margin-bottom:8px;">${escapeHtml(orgSummary)}</div>
-                            <div class="agent-runtime-section-grid">${identitySummary}${healthSummary}${budgetSummary}${renderAgentTaskPostureSection(empName)}${capabilitySection}</div>
+                            <div class="agent-runtime-section-grid">${identitySummary}${clientNodeSection}${healthSummary}${budgetSummary}${renderAgentTaskPostureSection(empName)}${capabilitySection}</div>
                             <div style="white-space:pre-wrap; font-size:12px; margin-top:10px;">${escapeHtml(profile.identity || '')}</div>
                             <div style="margin-top:10px; display:flex; flex-wrap:wrap;">${toolBadges}</div>
                         </div>
@@ -11758,6 +11769,116 @@ function renderWorklogConversation(history, runs) {
     return html.trim() ? `<div class="worklog-thread">${html}</div>` : '<div class="worklog-empty">还没有可展示的工作记录。</div>';
 }
 
+function buildOpenWorklogMarkdown() {
+    const modal = document.getElementById('reportModal');
+    const snapshot = window.currentWorklogSnapshot || {};
+    const employeeName = snapshot.employeeName || modal?.dataset?.employee || '员工';
+    const messages = Array.isArray(snapshot.history) ? snapshot.history : [];
+    const runs = Array.isArray(snapshot.runs) ? snapshot.runs : [];
+    const lines = [
+        `# ${employeeName} 的工作日志`,
+        '',
+        `导出时间：${new Date().toLocaleString('zh-CN')}`,
+        ''
+    ];
+
+    if (messages.length) {
+        lines.push('## 对话记录', '');
+        for (const item of messages) {
+            const role = String(item.role || item.Role || '').toLowerCase();
+            const label = role === 'user' ? '老板' : role === 'assistant' ? '员工' : '系统';
+            const timestamp = String(item.timestamp || item.Timestamp || '').trim();
+            const content = String(item.content || item.Content || '').trim();
+            if (!content) continue;
+            lines.push(`### ${label}${timestamp ? ` / ${timestamp}` : ''}`, '', content, '');
+        }
+    } else {
+        const plainText = document.getElementById('reportMarkdown')?.innerText?.trim() || '';
+        if (plainText) lines.push('## 页面内容', '', plainText, '');
+    }
+
+    if (runs.length) {
+        lines.push('## 最近运行', '');
+        for (const run of runs) {
+            const id = getRunIdFromObject(run) || '';
+            const taskText = String(run.taskText || run.TaskText || run.prompt || run.Prompt || '未命名任务').trim();
+            const status = String(run.status || run.Status || 'unknown').trim();
+            const updatedAt = String(run.updatedAt || run.UpdatedAt || run.finishedAt || run.FinishedAt || '').trim();
+            const adapterType = String(run.adapterType || run.AdapterType || '').trim();
+            const model = String(run.model || run.Model || '').trim();
+            const provider = String(run.provider || run.Provider || '').trim();
+            const finalContent = String(run.finalContent || run.FinalContent || '').trim();
+            const error = String(run.lastError || run.LastError || run.error || run.Error || '').trim();
+            lines.push(`### ${taskText}`, '');
+            if (id) lines.push(`- 运行 ID：${id}`);
+            lines.push(`- 状态：${status || 'unknown'}`);
+            if (updatedAt) lines.push(`- 更新时间：${updatedAt}`);
+            if (adapterType) lines.push(`- 适配器：${adapterType}`);
+            if (provider || model) lines.push(`- 模型：${[provider, model].filter(Boolean).join(' / ')}`);
+            if (finalContent) lines.push('', finalContent);
+            if (error) lines.push('', `失败原因：${error}`);
+            lines.push('');
+        }
+    }
+
+    return lines.join('\n').replace(/\n{4,}/g, '\n\n\n').trim() + '\n';
+}
+
+async function copyTextToClipboard(text) {
+    if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const ok = document.execCommand('copy');
+    textarea.remove();
+    if (!ok) throw new Error('copy_failed');
+}
+
+async function copyOpenWorklogMarkdown() {
+    const markdown = buildOpenWorklogMarkdown();
+    if (!markdown.trim()) {
+        showAppDialog({ title: '暂无日志', message: '当前没有可复制的工作日志。', tone: 'warning' });
+        return;
+    }
+    try {
+        await copyTextToClipboard(markdown);
+        showAppDialog({ title: '已复制', message: '工作日志 Markdown 已复制到剪贴板。', tone: 'success' });
+    } catch (err) {
+        showAppDialog({ title: '复制失败', message: '浏览器没有开放剪贴板权限，请改用导出 Markdown。', tone: 'error' });
+    }
+}
+
+function downloadOpenWorklogMarkdown() {
+    const markdown = buildOpenWorklogMarkdown();
+    if (!markdown.trim()) {
+        showAppDialog({ title: '暂无日志', message: '当前没有可导出的工作日志。', tone: 'warning' });
+        return;
+    }
+    const modal = document.getElementById('reportModal');
+    const employeeName = (window.currentWorklogSnapshot?.employeeName || modal?.dataset?.employee || 'employee')
+        .replace(/[\\/:*?"<>|]+/g, '-')
+        .replace(/\s+/g, '-')
+        .slice(0, 48) || 'employee';
+    const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+$/, '').replace('T', '-');
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${employeeName}-worklog-${stamp}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    showAppDialog({ title: '已导出', message: '工作日志 Markdown 已开始下载。', tone: 'success' });
+}
+
 function extractAgentExecutionPanel(content) {
     const text = String(content || '');
     const markers = ['## 智能体执行面板', '## Agent 执行面板', '## Agent Execution Panel'];
@@ -12312,6 +12433,106 @@ function normalizeDesktopAdapter(adapter) {
 function getAgentNodeAdapter(node) {
     const caps = node?.capabilities || {};
     return normalizeDesktopAdapter(caps.adapter || caps.runner || node?.adapterType);
+}
+
+function getBoundAgentNodeIdFromConfig(configNode) {
+    const adapterConfig = configNode?.AdapterConfig || configNode?.adapterConfig || {};
+    const rawNodeId = adapterConfig.nodeId ?? adapterConfig.NodeId;
+    const parsedNodeId = Number(rawNodeId);
+    if (Number.isFinite(parsedNodeId) && parsedNodeId > 0) return parsedNodeId;
+    const url = String(configNode?.Url || configNode?.url || '').trim();
+    const match = url.match(/^agent-node:\/\/(\d+)/i);
+    return match ? Number(match[1]) : 0;
+}
+
+function renderAgentClientNodeSection(empName, configNode, nodes) {
+    const nodeId = getBoundAgentNodeIdFromConfig(configNode);
+    const safeEmp = escapeJsSingleQuotedString(empName);
+    const adapterType = normalizeDesktopAdapter(configNode?.AdapterType || configNode?.adapterType || getAgentNodeAdapter({ capabilities: configNode?.AdapterConfig || {} }));
+    if (!nodeId) {
+        return `
+            <div class="agent-runtime-section-card">
+                <span>客户端节点</span>
+                <strong>未绑定</strong>
+                <small>下载并启动桌面 Agent 后，再确认入职或重新绑定员工。</small>
+            </div>`;
+    }
+    const node = (Array.isArray(nodes) ? nodes : []).find(item => String(item.id) === String(nodeId));
+    const statusText = node ? (node.online ? '在线' : '离线') : '已撤销或不可用';
+    const statusClass = node?.online ? 'completed' : 'failed';
+    const deviceName = node?.deviceName || `节点 ${nodeId}`;
+    const lastSeen = node?.lastSeenAt || '暂无心跳';
+    return `
+        <div class="agent-runtime-section-card">
+            <span>客户端节点</span>
+            <strong>${escapeHtml(deviceName)}</strong>
+            <small>节点 ${escapeHtml(String(nodeId))} / ${escapeHtml(desktopAdapterDisplayName(adapterType))} / <span class="agent-runtime-pill ${statusClass}">${escapeHtml(statusText)}</span></small>
+            <small>最后心跳：${escapeHtml(lastSeen)}</small>
+            <div class="agent-run-actions" style="margin-top:8px;">
+                <button class="agent-run-btn secondary" onclick="resetAgentNodeToken(event, '${safeEmp}', ${Number(nodeId)})">重置 token</button>
+                <button class="agent-run-btn" style="background:#fee2e2; color:#991b1b;" onclick="unbindAgentNode(event, '${safeEmp}', ${Number(nodeId)})">解绑节点</button>
+            </div>
+        </div>`;
+}
+
+async function resetAgentNodeToken(event, empName, nodeId) {
+    event?.stopPropagation?.();
+    if (!nodeId) return;
+    const ok = await showAppConfirm({
+        title: '重置节点 token',
+        message: `确定要重置 ${empName} 的节点 ${nodeId} token 吗？当前打开的旧客户端会失效，手动 Runner 需要换成新 token。`,
+        confirmText: '重置 token',
+        buttonTone: 'warning'
+    });
+    if (!ok) return;
+    try {
+        const res = await fetch(`/api/agent-nodes/${encodeURIComponent(nodeId)}/reset-token`, { method: 'POST' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || '重置 token 失败');
+        if (data.token) {
+            try { await copyTextToClipboard(String(data.token)); } catch (_) {}
+        }
+        showAppDialog({
+            title: 'token 已重置',
+            message: data.token ? '新 token 已复制到剪贴板。桌面安装包客户端建议重新下载并重新绑定。' : '节点 token 已重置，请重新下载或更新客户端配置。',
+            tone: 'success'
+        });
+        refreshDesktopClientStatus().catch(() => {});
+        renderAgentPanelForEmployee(empName).catch(() => {});
+    } catch (err) {
+        showAppDialog({ title: '重置失败', message: err?.message || String(err), tone: 'error' });
+    }
+}
+
+async function unbindAgentNode(event, empName, nodeId) {
+    event?.stopPropagation?.();
+    if (!nodeId) return;
+    const ok = await showAppConfirm({
+        title: '解绑客户端节点',
+        message: `确定解绑 ${empName} 的节点 ${nodeId} 吗？该节点 token 会立即失效，当前客户端不能继续领任务。`,
+        confirmText: '解绑节点',
+        buttonTone: 'error'
+    });
+    if (!ok) return;
+    try {
+        const res = await fetch(`/api/agent-nodes/${encodeURIComponent(nodeId)}/unbind`, { method: 'POST' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || '解绑节点失败');
+        try {
+            const cfg = await fetchTeamConfigNoStore(1);
+            applyTeamConfigIfUsable(cfg, { force: true });
+        } catch (_) {}
+        showAppDialog({
+            title: '节点已解绑',
+            message: `已撤销节点 ${nodeId}，解除 ${data.bindingsRemoved || 0} 个员工绑定。需要继续使用时请重新下载客户端并绑定。`,
+            tone: 'success'
+        });
+        refreshDesktopClientStatus().catch(() => {});
+        refreshControlPlaneOverview().catch(() => {});
+        renderAgentPanelForEmployee(empName).catch(() => {});
+    } catch (err) {
+        showAppDialog({ title: '解绑失败', message: err?.message || String(err), tone: 'error' });
+    }
 }
 
 function getVisibleRunnerAdapter() {
@@ -13314,6 +13535,12 @@ function normalizeDeskStatusText(text, fallback = '待命中') {
     }
 
     const history = await historyRes.json();
+    window.currentWorklogSnapshot = {
+        employeeName: empName,
+        history: Array.isArray(history) ? history : [],
+        runs: Array.isArray(runs) ? runs : [],
+        updatedAt: new Date().toISOString()
+    };
     reportMarkdown.innerHTML = renderWorklogConversation(history, runs);
     syncPinnedStageDetails(reportMarkdown);
     syncCurrentWorklogStepFocus(reportMarkdown);
@@ -13464,6 +13691,7 @@ setInterval(() => pollDeskStatuses().catch(() => {}), 10000);
             reportModal.dataset.openStageKeys = '[]';
             reportModal.dataset.worklogCardFilter = 'all';
             reportModal.dataset.worklogStreamTab = 'all';
+            window.currentWorklogSnapshot = { employeeName: empName, history: [], runs: [], updatedAt: new Date().toISOString() };
 
             try {
                 await refreshOpenWorklog(empName);

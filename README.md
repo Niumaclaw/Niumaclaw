@@ -40,6 +40,10 @@ http://localhost:4050/
 
 [观看 30-60 秒演示视频](docs/demo/niumaclaw-demo.webm)
 
+## 试用上手
+
+[5 分钟快速开始](docs/QUICKSTART_5_MINUTES.md)
+
 ## 参与项目
 
 - 路线图：[ROADMAP.md](ROADMAP.md)

@@ -48,6 +48,8 @@ internal class Program
 
 	private const string BossMarketUrl = "http://ddns.work:8888";
 
+	private const string UnboundAgentNodeUrl = "agent-node://unbound";
+
 	private static readonly Dictionary<string, string[]> WebsiteStageDeliverables = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
 	{
 		["prd"] = new string[1] { "docs/prd.md" },
@@ -147,6 +149,10 @@ internal class Program
 		string cmdText = "CREATE TABLE IF NOT EXISTS schema_migrations (\n    version integer PRIMARY KEY,\n    applied_at timestamptz NOT NULL DEFAULT now()\n);\nCREATE TABLE IF NOT EXISTS accounts (\n    id uuid PRIMARY KEY,\n    email text UNIQUE,\n    phone text UNIQUE,\n    display_name text NOT NULL,\n    password_hash text,\n    created_at timestamptz NOT NULL DEFAULT now(),\n    updated_at timestamptz NOT NULL DEFAULT now()\n);\nCREATE TABLE IF NOT EXISTS sessions (\n    token_hash text PRIMARY KEY,\n    account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,\n    expires_at timestamptz NOT NULL,\n    created_at timestamptz NOT NULL DEFAULT now()\n);\nCREATE TABLE IF NOT EXISTS verification_codes (\n    id bigserial PRIMARY KEY,\n    channel text NOT NULL,\n    target text NOT NULL,\n    purpose text NOT NULL,\n    code_hash text NOT NULL,\n    expires_at timestamptz NOT NULL,\n    consumed_at timestamptz,\n    created_at timestamptz NOT NULL DEFAULT now()\n);\nCREATE TABLE IF NOT EXISTS companies (\n    account_id uuid PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,\n    name text NOT NULL,\n    profile text,\n    has_license boolean NOT NULL DEFAULT false,\n    master_node_url text NOT NULL DEFAULT 'http://127.0.0.1:5050',\n    sop text\n);\nCREATE TABLE IF NOT EXISTS employees (\n    account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,\n    name text NOT NULL,\n    data jsonb NOT NULL,\n    PRIMARY KEY (account_id, name)\n);\nCREATE TABLE IF NOT EXISTS model_endpoints (\n    id uuid PRIMARY KEY,\n    account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,\n    provider text NOT NULL DEFAULT '',\n    name text NOT NULL DEFAULT '',\n    version text NOT NULL DEFAULT '',\n    base_url text NOT NULL DEFAULT '',\n    api_key_encrypted text NOT NULL DEFAULT '',\n    enabled boolean NOT NULL DEFAULT true,\n    endpoint_id text NOT NULL DEFAULT '',\n    sort_order integer NOT NULL DEFAULT 0\n);\nCREATE TABLE IF NOT EXISTS account_state (\n    account_id uuid PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,\n    company_goals_json jsonb NOT NULL DEFAULT '[]'::jsonb,\n    projects_json jsonb NOT NULL DEFAULT '[]'::jsonb,\n    routines_json jsonb NOT NULL DEFAULT '[]'::jsonb,\n    routine_history_json jsonb NOT NULL DEFAULT '[]'::jsonb,\n    heartbeats_json jsonb NOT NULL DEFAULT '{}'::jsonb\n);\nALTER TABLE account_state ADD COLUMN IF NOT EXISTS company_goals_json jsonb NOT NULL DEFAULT '[]'::jsonb;\nCREATE TABLE IF NOT EXISTS account_avatars (\n    account_id uuid PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,\n    content_type text NOT NULL,\n    data bytea NOT NULL,\n    updated_at timestamptz NOT NULL DEFAULT now()\n);\nCREATE TABLE IF NOT EXISTS agent_nodes (\n    id bigserial PRIMARY KEY,\n    account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,\n    device_id text NOT NULL,\n    device_name text NOT NULL,\n    node_token_hash text NOT NULL UNIQUE,\n    platform text,\n    version text,\n    status text NOT NULL DEFAULT 'offline',\n    capabilities_json jsonb NOT NULL DEFAULT '{}'::jsonb,\n    last_seen_at timestamptz,\n    created_at timestamptz NOT NULL DEFAULT now(),\n    updated_at timestamptz NOT NULL DEFAULT now(),\n    UNIQUE(account_id, device_id)\n);\nCREATE TABLE IF NOT EXISTS agent_jobs (\n    id bigserial PRIMARY KEY,\n    account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,\n    node_id bigint NOT NULL REFERENCES agent_nodes(id) ON DELETE CASCADE,\n    employee_name text NOT NULL,\n    adapter_type text NOT NULL,\n    status text NOT NULL DEFAULT 'queued',\n    prompt text NOT NULL,\n    payload_json jsonb NOT NULL DEFAULT '{}'::jsonb,\n    result text,\n    error text,\n    board_task_id text,\n    created_at timestamptz NOT NULL DEFAULT now(),\n    started_at timestamptz,\n    finished_at timestamptz,\n    updated_at timestamptz NOT NULL DEFAULT now()\n);\nCREATE INDEX IF NOT EXISTS idx_agent_jobs_poll ON agent_jobs(node_id, status, created_at);\nCREATE INDEX IF NOT EXISTS idx_agent_jobs_account ON agent_jobs(account_id, updated_at DESC);\nINSERT INTO schema_migrations(version) VALUES (1) ON CONFLICT DO NOTHING;";
 		await using NpgsqlCommand cmd = new NpgsqlCommand(cmdText, conn);
 		await cmd.ExecuteNonQueryAsync();
+		await using (NpgsqlCommand agentNodesMigrationCmd = new NpgsqlCommand("ALTER TABLE agent_nodes ADD COLUMN IF NOT EXISTS revoked_at timestamptz", conn))
+		{
+			await agentNodesMigrationCmd.ExecuteNonQueryAsync();
+		}
 		await ImportLegacyOwnerIfNeededAsync(conn);
 	}
 
@@ -402,6 +408,28 @@ internal class Program
 		return (url ?? string.Empty).Trim().StartsWith("agent-node://", StringComparison.OrdinalIgnoreCase);
 	}
 
+	private static int DetachAgentNodeBindings(AppConfig config, long nodeId)
+	{
+		int count = 0;
+		foreach (KeyValuePair<string, NodeInfo> item in config.PeerNodes)
+		{
+			NodeInfo node = item.Value;
+			if (node == null || GetBoundAgentNodeId(node) != nodeId)
+			{
+				continue;
+			}
+			string adapterType = NormalizeAgentAdapterType(GetAdapterType(node));
+			node.Url = UnboundAgentNodeUrl;
+			node.AdapterType = adapterType;
+			node.Capabilities = new List<string> { "chat", "tasks", "runner" };
+			node.AdapterConfig ??= new Dictionary<string, JsonElement>();
+			node.AdapterConfig.Remove("nodeId");
+			node.AdapterConfig["adapterType"] = JsonStringElement(adapterType);
+			count++;
+		}
+		return count;
+	}
+
 	private static string BuildClientPackageDeviceId(string platformPrefix, string adapterType, string? requestedDeviceId)
 	{
 		string baseId = string.IsNullOrWhiteSpace(requestedDeviceId)
@@ -453,7 +481,7 @@ internal class Program
 		await using (NpgsqlConnection conn = await OpenDatabaseAsync())
 		{
 			AgentNodeContext agentNodeContext2;
-			await using (NpgsqlCommand cmd = new NpgsqlCommand("SELECT id, account_id, device_id, device_name\nFROM agent_nodes\nWHERE node_token_hash = @token_hash\nLIMIT 1", conn))
+			await using (NpgsqlCommand cmd = new NpgsqlCommand("SELECT id, account_id, device_id, device_name\nFROM agent_nodes\nWHERE node_token_hash = @token_hash AND revoked_at IS NULL\nLIMIT 1", conn))
 			{
 				cmd.Parameters.AddWithValue("token_hash", HashText(token));
 				AgentNodeContext agentNodeContext;
@@ -785,7 +813,7 @@ internal class Program
 		long nodeId;
 		await using (NpgsqlConnection conn = await OpenDatabaseAsync())
 		{
-			await using NpgsqlCommand cmd = new NpgsqlCommand("INSERT INTO agent_nodes(account_id, device_id, device_name, node_token_hash, platform, version, status, capabilities_json, last_seen_at, updated_at)\nVALUES (@account_id, @device_id, @device_name, @token_hash, @platform, @version, @status, @capabilities::jsonb, CASE WHEN @mark_online THEN now() ELSE NULL END, now())\nON CONFLICT (account_id, device_id) DO UPDATE SET\n    device_name = EXCLUDED.device_name,\n    node_token_hash = EXCLUDED.node_token_hash,\n    platform = EXCLUDED.platform,\n    version = EXCLUDED.version,\n    status = @status,\n    capabilities_json = EXCLUDED.capabilities_json,\n    last_seen_at = CASE WHEN @mark_online THEN now() ELSE NULL END,\n    updated_at = now()\nRETURNING id", conn);
+			await using NpgsqlCommand cmd = new NpgsqlCommand("INSERT INTO agent_nodes(account_id, device_id, device_name, node_token_hash, platform, version, status, capabilities_json, last_seen_at, updated_at, revoked_at)\nVALUES (@account_id, @device_id, @device_name, @token_hash, @platform, @version, @status, @capabilities::jsonb, CASE WHEN @mark_online THEN now() ELSE NULL END, now(), NULL)\nON CONFLICT (account_id, device_id) DO UPDATE SET\n    device_name = EXCLUDED.device_name,\n    node_token_hash = EXCLUDED.node_token_hash,\n    platform = EXCLUDED.platform,\n    version = EXCLUDED.version,\n    status = @status,\n    capabilities_json = EXCLUDED.capabilities_json,\n    last_seen_at = CASE WHEN @mark_online THEN now() ELSE NULL END,\n    updated_at = now(),\n    revoked_at = NULL\nRETURNING id", conn);
 			cmd.Parameters.AddWithValue("account_id", accountId);
 			cmd.Parameters.AddWithValue("device_id", deviceId);
 			cmd.Parameters.AddWithValue("device_name", deviceName);
@@ -1202,7 +1230,7 @@ internal class Program
 		await using (NpgsqlConnection conn = await OpenDatabaseAsync())
 		{
 			List<AgentNodeClientPayload> list2;
-			await using (NpgsqlCommand cmd = new NpgsqlCommand("SELECT id, device_id, device_name, platform, version, status,\n       COALESCE(to_char(last_seen_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI:SS'), ''),\n       capabilities_json::text,\n       (last_seen_at IS NOT NULL AND last_seen_at > now() - interval '90 seconds') AS online\nFROM agent_nodes\nWHERE account_id = @account_id\nORDER BY updated_at DESC, id DESC", conn))
+			await using (NpgsqlCommand cmd = new NpgsqlCommand("SELECT id, device_id, device_name, platform, version, status,\n       COALESCE(to_char(last_seen_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD HH24:MI:SS'), ''),\n       capabilities_json::text,\n       (last_seen_at IS NOT NULL AND last_seen_at > now() - interval '90 seconds') AS online\nFROM agent_nodes\nWHERE account_id = @account_id AND revoked_at IS NULL\nORDER BY updated_at DESC, id DESC", conn))
 			{
 				cmd.Parameters.AddWithValue("account_id", accountId);
 				List<AgentNodeClientPayload> result = new List<AgentNodeClientPayload>();
@@ -1237,7 +1265,7 @@ internal class Program
 	private static async Task<bool> AgentNodeBelongsToAccountAsync(NpgsqlConnection conn, Guid accountId, long nodeId)
 	{
 		bool result;
-		await using (NpgsqlCommand cmd = new NpgsqlCommand("SELECT 1 FROM agent_nodes WHERE account_id = @account_id AND id = @id", conn))
+		await using (NpgsqlCommand cmd = new NpgsqlCommand("SELECT 1 FROM agent_nodes WHERE account_id = @account_id AND id = @id AND revoked_at IS NULL", conn))
 		{
 			cmd.Parameters.AddWithValue("account_id", accountId);
 			cmd.Parameters.AddWithValue("id", nodeId);
@@ -1377,7 +1405,7 @@ internal class Program
 	private static async Task<long> ResolveOnlineAgentNodeIdAsync(NpgsqlConnection conn, Guid accountId, long preferredNodeId, string adapterType, bool allowCompatibleFallback)
 	{
 		string runner = RunnerCommandAdapter(adapterType);
-		await using NpgsqlCommand cmd = new NpgsqlCommand("SELECT id\nFROM agent_nodes\nWHERE account_id = @account_id\n  AND last_seen_at IS NOT NULL\n  AND last_seen_at > now() - interval '90 seconds'\n  AND NOT (\n      COALESCE(capabilities_json -> 'supports', '[]'::jsonb) ? 'desktop-ui'\n      AND COALESCE(version, '') IN ('1.0.1', '1.0.2', '1.0.3', '1.0.4')\n  )\n  AND (\n      id = @preferred_node_id\n      OR (\n          @allow_compatible_fallback\n          AND (\n              capabilities_json ->> 'adapterType' = @adapter_type\n              OR capabilities_json ->> 'adapter' = @adapter_type\n              OR capabilities_json ->> 'adapter' = @runner\n          )\n      )\n  )\nORDER BY CASE WHEN id = @preferred_node_id THEN 0 ELSE 1 END,\n         last_seen_at DESC,\n         updated_at DESC,\n         id DESC\nLIMIT 1", conn);
+		await using NpgsqlCommand cmd = new NpgsqlCommand("SELECT id\nFROM agent_nodes\nWHERE account_id = @account_id\n  AND revoked_at IS NULL\n  AND last_seen_at IS NOT NULL\n  AND last_seen_at > now() - interval '90 seconds'\n  AND NOT (\n      COALESCE(capabilities_json -> 'supports', '[]'::jsonb) ? 'desktop-ui'\n      AND COALESCE(version, '') IN ('1.0.1', '1.0.2', '1.0.3', '1.0.4')\n  )\n  AND (\n      id = @preferred_node_id\n      OR (\n          @allow_compatible_fallback\n          AND (\n              capabilities_json ->> 'adapterType' = @adapter_type\n              OR capabilities_json ->> 'adapter' = @adapter_type\n              OR capabilities_json ->> 'adapter' = @runner\n          )\n      )\n  )\nORDER BY CASE WHEN id = @preferred_node_id THEN 0 ELSE 1 END,\n         last_seen_at DESC,\n         updated_at DESC,\n         id DESC\nLIMIT 1", conn);
 		cmd.Parameters.AddWithValue("account_id", accountId);
 		cmd.Parameters.AddWithValue("preferred_node_id", preferredNodeId);
 		cmd.Parameters.AddWithValue("adapter_type", adapterType);
@@ -2013,6 +2041,62 @@ internal class Program
 			string json = "{\"status\":\"ok\",\"token\":" + JsonSerializer.Serialize(tuple.Item2, AppJsonContext.Default.String) + ",\"node\":" + JsonSerializer.Serialize(tuple.Item3, AppJsonContext.Default.AgentNodeClientPayload) + ",\"downloadUrl\":\"/agent_runner.py\"}";
 			await WriteJsonAsync(res, json);
 			return true;
+		}
+		string[] nodePathParts = text.Split('/', StringSplitOptions.RemoveEmptyEntries);
+		if (nodePathParts.Length == 4 && nodePathParts[0] == "api" && nodePathParts[1] == "agent-nodes" && long.TryParse(nodePathParts[2], out var actionNodeId) && req.HttpMethod == "POST")
+		{
+			AccountContext account = await GetAccountFromRequestAsync(req);
+			if (account == null)
+			{
+				await WriteJsonAsync(res, "{\"error\":\"unauthorized\"}", 401);
+				return true;
+			}
+			if (nodePathParts[3] == "reset-token")
+			{
+				string newToken = "nnode_" + NewToken();
+				int affected;
+				await using (NpgsqlConnection conn = await OpenDatabaseAsync())
+				{
+					await using NpgsqlCommand cmd = new NpgsqlCommand("UPDATE agent_nodes\nSET node_token_hash = @token_hash,\n    status = 'pending',\n    last_seen_at = NULL,\n    updated_at = now()\nWHERE account_id = @account_id AND id = @id AND revoked_at IS NULL", conn);
+					cmd.Parameters.AddWithValue("token_hash", HashText(newToken));
+					cmd.Parameters.AddWithValue("account_id", account.AccountId);
+					cmd.Parameters.AddWithValue("id", actionNodeId);
+					affected = await cmd.ExecuteNonQueryAsync();
+				}
+				if (affected <= 0)
+				{
+					await WriteJsonAsync(res, "{\"error\":\"node_not_found\"}", 404);
+					return true;
+				}
+				string json = "{\"status\":\"ok\",\"nodeId\":" + actionNodeId.ToString(CultureInfo.InvariantCulture) + ",\"token\":" + JsonSerializer.Serialize(newToken, AppJsonContext.Default.String) + "}";
+				await WriteJsonAsync(res, json);
+				return true;
+			}
+			if (nodePathParts[3] == "unbind")
+			{
+				int affected;
+				await using (NpgsqlConnection conn = await OpenDatabaseAsync())
+				{
+					await using NpgsqlCommand cmd = new NpgsqlCommand("UPDATE agent_nodes\nSET status = 'revoked',\n    last_seen_at = NULL,\n    revoked_at = now(),\n    updated_at = now()\nWHERE account_id = @account_id AND id = @id AND revoked_at IS NULL", conn);
+					cmd.Parameters.AddWithValue("account_id", account.AccountId);
+					cmd.Parameters.AddWithValue("id", actionNodeId);
+					affected = await cmd.ExecuteNonQueryAsync();
+				}
+				if (affected <= 0)
+				{
+					await WriteJsonAsync(res, "{\"error\":\"node_not_found\"}", 404);
+					return true;
+				}
+				AppConfig appConfig = await LoadAccountConfigAsync(account.AccountId);
+				int bindingsRemoved = DetachAgentNodeBindings(appConfig, actionNodeId);
+				if (bindingsRemoved > 0)
+				{
+					await SaveAccountConfigAsync(account.AccountId, appConfig);
+				}
+				string json = "{\"status\":\"ok\",\"nodeId\":" + actionNodeId.ToString(CultureInfo.InvariantCulture) + ",\"bindingsRemoved\":" + bindingsRemoved.ToString(CultureInfo.InvariantCulture) + "}";
+				await WriteJsonAsync(res, json);
+				return true;
+			}
 		}
 		if (text == "/api/agent-nodes/macos-client" && (req.HttpMethod == "POST" || req.HttpMethod == "GET"))
 		{
@@ -6965,6 +7049,13 @@ internal class Program
 				{
 					AccountContext accountContext = CurrentAccountOrThrow();
 					long? nodeId = GetBoundAgentNodeId(value28);
+					if (!nodeId.HasValue)
+					{
+						res.StatusCode = 200;
+						res.ContentType = "application/json; charset=utf-8";
+						await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes((path == "/api/status") ? "{\"isWorking\":false,\"currentAction\":\"本机 Runner 未绑定客户端节点\"}" : "[]"));
+						return;
+					}
 					List<AgentJobRecord> source2 = (await LoadRecentAgentJobsAsync(accountContext.AccountId, 20)).Where((AgentJobRecord agentJobRecord4) => agentJobRecord4.NodeId == nodeId && string.Equals(agentJobRecord4.EmployeeName, username, StringComparison.OrdinalIgnoreCase)).ToList();
 					res.StatusCode = 200;
 					res.ContentType = "application/json; charset=utf-8";
@@ -7041,6 +7132,26 @@ internal class Program
 				{
 					AccountContext accountContext2 = CurrentAccountOrThrow();
 					long? nodeId2 = GetBoundAgentNodeId(nodeInfo);
+					if (!nodeId2.HasValue)
+					{
+						res.StatusCode = 200;
+						res.ContentType = "application/json; charset=utf-8";
+						if (path == "/api/agent/profile")
+						{
+							AgentProfilePayload agentProfilePayload = NormalizeAgentProfilePayload(nodeInfo, username2, "{}");
+							agentProfilePayload.Workspace = ReadJsonStringFromConfig(nodeInfo.AdapterConfig, "workspacePath") ?? string.Empty;
+							agentProfilePayload.Health.Status = "offline";
+							agentProfilePayload.Health.Source = "agent-runner";
+							agentProfilePayload.Health.Message = "未绑定客户端节点，请重新下载或绑定桌面 Agent。";
+							agentProfilePayload.Health.LastSeenAt = string.Empty;
+							await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(agentProfilePayload, AppJsonContext.Default.AgentProfilePayload)));
+						}
+						else
+						{
+							await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes(path == "/api/agent/runs" ? "[]" : "{\"status\":\"error\",\"message\":\"员工未绑定客户端节点\"}"));
+						}
+						return;
+					}
 					List<AgentJobRecord> source3 = (await LoadRecentAgentJobsAsync(accountContext2.AccountId, 50)).Where((AgentJobRecord agentJobRecord4) => agentJobRecord4.NodeId == nodeId2 && string.Equals(agentJobRecord4.EmployeeName, username2, StringComparison.OrdinalIgnoreCase)).ToList();
 					res.StatusCode = 200;
 					res.ContentType = "application/json; charset=utf-8";

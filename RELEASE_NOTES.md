@@ -1,5 +1,14 @@
 # Release Notes
 
+## v1.0.26 - Commercial MVP Controls
+
+### Highlights
+
+- 新增客户端节点重置 token 和解绑接口，解绑后旧桌面客户端 token 立即失效，员工配置会进入未绑定状态。
+- 智能体面板新增客户端节点卡片，可查看节点号、在线状态、最后心跳，并直接重置 token 或解绑。
+- 工作日志弹窗新增复制 Markdown 和导出 Markdown，便于给客户、同事或售前材料复盘任务结果。
+- 新增 5 分钟快速开始文档，覆盖注册、下载桌面端、连接 Agent、派工、查看日志和常见卡点。
+
 ## v1.0.25 - Commercial MVP Installer
 
 ### Highlights
