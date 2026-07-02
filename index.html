@@ -12606,12 +12606,15 @@ function renderDesktopClientDownloadMeta(meta) {
     if (!box) return;
     const windows = meta?.windows || {};
     const macos = meta?.macos || {};
+    const delivery = meta?.downloadDelivery || {};
     const agentVersion = meta?.agentVersion || windows.version || macos.version || '未知版本';
     const lines = [
         `当前 Agent：v${agentVersion}`,
+        `下载通道：${delivery.label || '本站直传'}${delivery.accelerated && delivery.publicBaseUrl ? `（${delivery.publicBaseUrl}）` : ''}`,
         `Windows：${windows.sizeText || '大小未知'}，${formatDesktopClientUpdatedAt(windows.updatedAt)}，EXE 首次打开会自动安装并创建快捷方式。`,
         `macOS：${macos.sizeText || '大小未知'}，${formatDesktopClientUpdatedAt(macos.updatedAt)}，DMG 内含 NiumaClaw Agent.app。`
     ];
+    if (delivery.note) lines.push(delivery.note);
     if (meta?.fallbackNote) lines.push(meta.fallbackNote);
     box.innerText = lines.join('\n');
 }

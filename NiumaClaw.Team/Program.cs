@@ -907,6 +907,7 @@ internal class Program
 		{
 			return "{"
 				+ "\"agentVersion\":\"1.0.7\","
+				+ "\"downloadDelivery\":" + BuildDownloadDeliveryMetadataObject() + ","
 				+ "\"windows\":" + BuildDownloadMetadataObject(
 					WindowsDesktopClientTemplateFileName,
 					"Windows 桌面端 EXE",
@@ -927,17 +928,57 @@ internal class Program
 			bool available = !string.IsNullOrWhiteSpace(path);
 			long sizeBytes = available ? new FileInfo(path!).Length : 0L;
 			string updatedAt = available ? File.GetLastWriteTimeUtc(path!).ToString("O", CultureInfo.InvariantCulture) : string.Empty;
+			string publicUrl = BuildPublicDownloadUrl(url);
 			return "{"
 				+ "\"available\":" + (available ? "true" : "false") + ","
 				+ "\"label\":" + JsonSerializer.Serialize(label, AppJsonContext.Default.String) + ","
 				+ "\"version\":\"1.0.7\","
 				+ "\"fileName\":" + JsonSerializer.Serialize(fileName, AppJsonContext.Default.String) + ","
-				+ "\"url\":" + JsonSerializer.Serialize(url, AppJsonContext.Default.String) + ","
+				+ "\"url\":" + JsonSerializer.Serialize(publicUrl, AppJsonContext.Default.String) + ","
+				+ "\"path\":" + JsonSerializer.Serialize(url, AppJsonContext.Default.String) + ","
 				+ "\"sizeBytes\":" + sizeBytes.ToString(CultureInfo.InvariantCulture) + ","
 				+ "\"sizeText\":" + JsonSerializer.Serialize(FormatDownloadSize(sizeBytes), AppJsonContext.Default.String) + ","
 				+ "\"updatedAt\":" + JsonSerializer.Serialize(updatedAt, AppJsonContext.Default.String) + ","
 				+ "\"note\":" + JsonSerializer.Serialize(note, AppJsonContext.Default.String)
 				+ "}";
+		}
+
+		private static string BuildDownloadDeliveryMetadataObject()
+		{
+			string publicBaseUrl = GetDownloadPublicBaseUrl();
+			bool accelerated = !string.IsNullOrWhiteSpace(publicBaseUrl);
+			string mode = accelerated ? "mirror" : "origin";
+			string label = accelerated ? "镜像/加速域名" : "本站直传";
+			string note = accelerated
+				? "客户端下载会使用配置的下载域名；请确保该域名能访问 /downloads/ 和 /generated-downloads/。"
+				: "当前使用本站直传；可通过 NIUMACLAW_DOWNLOAD_PUBLIC_BASE_URL 接入 CDN、对象存储或下载镜像。";
+			return "{"
+				+ "\"mode\":" + JsonSerializer.Serialize(mode, AppJsonContext.Default.String) + ","
+				+ "\"label\":" + JsonSerializer.Serialize(label, AppJsonContext.Default.String) + ","
+				+ "\"accelerated\":" + (accelerated ? "true" : "false") + ","
+				+ "\"publicBaseUrl\":" + JsonSerializer.Serialize(publicBaseUrl, AppJsonContext.Default.String) + ","
+				+ "\"note\":" + JsonSerializer.Serialize(note, AppJsonContext.Default.String)
+				+ "}";
+		}
+
+		private static string GetDownloadPublicBaseUrl()
+		{
+			string? configured = Environment.GetEnvironmentVariable("NIUMACLAW_DOWNLOAD_PUBLIC_BASE_URL");
+			if (string.IsNullOrWhiteSpace(configured))
+			{
+				configured = Environment.GetEnvironmentVariable("NIUMACLAW_DOWNLOAD_BASE_URL");
+			}
+			return string.IsNullOrWhiteSpace(configured) ? string.Empty : configured.Trim().TrimEnd('/');
+		}
+
+		private static string BuildPublicDownloadUrl(string path)
+		{
+			if (string.IsNullOrWhiteSpace(path)) return path;
+			if (Uri.TryCreate(path, UriKind.Absolute, out _)) return path;
+			string publicBaseUrl = GetDownloadPublicBaseUrl();
+			return string.IsNullOrWhiteSpace(publicBaseUrl)
+				? path
+				: publicBaseUrl + "/" + path.TrimStart('/');
 		}
 
 		private static string FormatDownloadSize(long bytes)
@@ -1080,7 +1121,8 @@ internal class Program
 			string directory = Path.Combine(root, token);
 			Directory.CreateDirectory(directory);
 			await File.WriteAllBytesAsync(Path.Combine(directory, safeFileName), content);
-			return "/generated-downloads/" + token + "/" + Uri.EscapeDataString(safeFileName);
+			string relativePath = "/generated-downloads/" + token + "/" + Uri.EscapeDataString(safeFileName);
+			return BuildPublicDownloadUrl(relativePath);
 		}
 
 		private static string GetGeneratedDesktopDownloadRoot()

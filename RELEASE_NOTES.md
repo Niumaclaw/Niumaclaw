@@ -1,5 +1,14 @@
 # Release Notes
 
+## v1.0.28 - Download Acceleration Ready
+
+### Highlights
+
+- 客户端下载元数据新增下载通道信息，下载弹窗可显示当前使用本站直传还是镜像/加速域名。
+- 生成的账号专属 Windows EXE 和 macOS DMG 下载链接支持 `NIUMACLAW_DOWNLOAD_PUBLIC_BASE_URL`，便于后续接入 CDN、对象存储或下载镜像。
+- 静态客户端下载地址也会按公共下载域名输出，同时保留本站 `/downloads/` 兜底。
+- 新增下载加速部署说明，覆盖 nginx 静态直传、CDN/对象存储接入和验证命令。
+
 ## v1.0.27 - Commercial MVP Trial Docs
 
 ### Highlights

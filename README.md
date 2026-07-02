@@ -46,6 +46,7 @@ http://localhost:4050/
 - [macOS / Windows 安装教程](docs/INSTALLATION_GUIDE.md)
 - [Codex CLI 安装与登录说明](docs/CODEX_CLI_SETUP.md)
 - [常见问题](docs/FAQ.md)
+- [下载加速部署说明](docs/DOWNLOAD_ACCELERATION.md)
 
 ## 参与项目
 
