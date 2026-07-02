@@ -1,5 +1,12 @@
 # Release Notes
 
+## v1.0.21 - Runner Minimum Version
+
+### Highlights
+
+- 派工和绑定时过滤低于 1.0.4 的桌面 Agent，避免旧 macOS/Windows 客户端继续接活后因命令模板问题失败。
+- 旧客户端仍可显示在线心跳，但不会被选作可执行 Runner；用户需要重新下载新版客户端。
+
 ## v1.0.20 - Runner Bind Safety
 
 ### Highlights
