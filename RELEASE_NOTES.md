@@ -1,5 +1,14 @@
 # Release Notes
 
+## v1.0.25 - Commercial MVP Installer
+
+### Highlights
+
+- 桌面 Agent 升级到 `1.0.7`，Windows EXE 首次打开会自动安装到本机、创建桌面/开始菜单快捷方式，并切换到安装后的客户端运行。
+- 下载弹窗新增客户端版本、文件大小和备用说明，服务端提供 `/api/downloads/client-metadata` 供页面读取真实包信息。
+- Runner 任务失败原因标准化为可读中文提示，覆盖 `command not found`、timeout、权限不足、token 失效和非零退出码。
+- 网页工作日志和智能体面板读取旧任务时也会即时翻译失败原因，避免继续展示 `/bin/bash: codex: command not found` 这类原始错误。
+
 ## v1.0.24 - MVP Diagnostics
 
 ### Highlights

@@ -9,7 +9,7 @@ namespace NiumaClaw.Agent;
 
 internal sealed class AgentRunner
 {
-    internal const string AgentVersion = "1.0.6";
+    internal const string AgentVersion = "1.0.7";
 
     private readonly AgentConfig _config;
     private readonly HttpClient _http = new();
@@ -117,7 +117,7 @@ internal sealed class AgentRunner
         string command = BuildCommand(prompt);
         if (string.IsNullOrWhiteSpace(command))
         {
-            return (false, string.Empty, "No command configured for this adapter.");
+            return (false, string.Empty, "当前适配器没有配置可执行命令，请重新下载客户端或配置 NIUMACLAW_RUNNER_COMMAND_TEMPLATE。");
         }
 
         LogLine("$ " + command);
@@ -141,17 +141,63 @@ internal sealed class AgentRunner
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             TryKill(process);
-            return (false, output.ToString(), "Command timed out after 30 minutes.");
+            return (false, output.ToString(), HumanizeCommandError("Command timed out after 30 minutes.", output.ToString()));
         }
         catch (Exception ex)
         {
-            return (false, output.ToString(), ex.Message);
+            return (false, output.ToString(), HumanizeCommandError(ex.Message, output.ToString()));
         }
 
         string text = output.ToString().Trim();
         return process.ExitCode == 0
             ? (true, string.IsNullOrWhiteSpace(text) ? "Command completed without output." : text, null)
-            : (false, text, "Command exited with code " + process.ExitCode + ".");
+            : (false, text, HumanizeCommandError("Command exited with code " + process.ExitCode + ".", text));
+    }
+
+    private string HumanizeCommandError(string rawError, string output)
+    {
+        string commandName = RequiredCommandName(_config.Adapter);
+        string combined = (rawError + "\n" + output).ToLowerInvariant();
+        if (combined.Contains("timed out", StringComparison.Ordinal))
+        {
+            return "任务超过 30 分钟未完成，已自动停止。请缩小任务范围或拆成更小的步骤后重试。";
+        }
+
+        if (combined.Contains("401", StringComparison.Ordinal) || combined.Contains("403", StringComparison.Ordinal)
+            || combined.Contains("unauthorized", StringComparison.Ordinal) || combined.Contains("forbidden", StringComparison.Ordinal))
+        {
+            return "服务器拒绝了客户端连接，请从网页重新下载当前账号专属桌面客户端。";
+        }
+
+        if (combined.Contains("command not found", StringComparison.Ordinal)
+            || combined.Contains("not recognized as an internal or external command", StringComparison.Ordinal)
+            || (combined.Contains("no such file or directory", StringComparison.Ordinal) && combined.Contains(commandName, StringComparison.Ordinal)))
+        {
+            return CommandMissingMessage(commandName);
+        }
+
+        if (combined.Contains("permission denied", StringComparison.Ordinal) || combined.Contains("access is denied", StringComparison.Ordinal))
+        {
+            return "本机命令没有足够权限执行。请检查工作区权限，或把工作区换到用户目录下的 NiumaClawWorkspace。";
+        }
+
+        if (rawError.StartsWith("Command exited with code ", StringComparison.OrdinalIgnoreCase))
+        {
+            return rawError + " 常见原因是 CLI 未登录、模型/网络权限不足，或任务里的命令执行失败。请查看运行详情里的终端输出。";
+        }
+
+        return string.IsNullOrWhiteSpace(rawError) ? "任务执行失败，请查看运行详情里的终端输出。" : rawError.Trim();
+    }
+
+    private static string CommandMissingMessage(string commandName)
+    {
+        return commandName.ToLowerInvariant() switch
+        {
+            "codex" => "找不到 codex 命令。请先安装并登录 Codex CLI，安装后重新打开 NiumaClaw Agent。",
+            "claude" => "找不到 claude 命令。请先安装并登录 Claude Code CLI，安装后重新打开 NiumaClaw Agent。",
+            "hermes" => "找不到 hermes 命令。请先安装 Hermes CLI，或用 NIUMACLAW_RUNNER_COMMAND_TEMPLATE 配置完整命令。",
+            _ => $"找不到 {commandName} 命令。请先安装该 CLI，或用 NIUMACLAW_RUNNER_COMMAND_TEMPLATE 配置完整命令。"
+        };
     }
 
     private void AppendProcessLine(StringBuilder output, string? line)

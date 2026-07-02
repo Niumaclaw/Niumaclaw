@@ -108,6 +108,21 @@ internal sealed class MainWindow : Window
         }
 
         _metaText.Text = $"{_config.DeviceName} / 节点 {_config.NodeId}\n{_config.Server}\n工作区：{_config.Workspace}";
+        WindowsSelfInstallResult installResult = await WindowsSelfInstaller.EnsureInstalledAsync(CancellationToken.None);
+        if (!string.IsNullOrWhiteSpace(installResult.Message) && OperatingSystem.IsWindows())
+        {
+            AppendLog(installResult.Message);
+        }
+        if (installResult.Relaunched)
+        {
+            _statusText.Text = "已安装";
+            _diagnosticsText.Text = "已安装到本机应用目录，并正在启动安装后的 NiumaClaw Agent。这个临时下载窗口可以关闭。";
+            SetRunnerButtons(isRunning: false, canStart: false);
+            await Task.Delay(800);
+            Close();
+            return;
+        }
+
         await RunDiagnosticsAsync(startWhenOk: true);
     }
 

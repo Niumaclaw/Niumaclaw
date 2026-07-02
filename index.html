@@ -1648,7 +1648,7 @@
             <div style="display:grid; grid-template-columns:1fr; gap:10px;">
                 <label style="font-size:12px; color:#64748b; font-weight:800;">桌面客户端</label>
                 <div style="padding:12px 14px; border:1px solid #dbeafe; border-radius:12px; background:#eff6ff; color:#1e3a8a; font-size:13px; line-height:1.6;">
-                    Windows 下载桌面端 EXE；macOS 下载 DMG，内含真正的 NiumaClaw Agent.app。保持应用窗口打开即可接收网页派发的任务。
+                    Windows 下载桌面端 EXE，首次打开会自动安装到本机并创建快捷方式；macOS 下载 DMG，内含真正的 NiumaClaw Agent.app。保持应用窗口打开即可接收网页派发的任务。
                 </div>
                 <select id="desktopClientAdapter" style="display:none; width:100%; padding:11px; border:1px solid #cbd5e1; border-radius:10px; outline:none;">
                     <option value="codex_runner">Codex 桌面客户端</option>
@@ -1658,6 +1658,7 @@
                 <label style="font-size:12px; color:#64748b; font-weight:800;">默认工作区（可选）</label>
                 <input id="desktopClientWorkspace" placeholder="留空则使用用户目录下的 NiumaClawWorkspace" style="box-sizing:border-box; width:100%; padding:11px; border:1px solid #cbd5e1; border-radius:10px; outline:none;">
                 <div id="desktopClientStatus" style="min-height:20px; color:#64748b; font-size:13px;">Windows/macOS 均为原生桌面端应用，下载后直接启动客户端窗口。</div>
+                <div id="desktopClientMeta" style="white-space:pre-line; padding:10px 12px; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc; color:#475569; font-size:12px; line-height:1.55;">正在读取客户端下载信息...</div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                     <button id="desktopClientDownloadBtn" onclick="downloadDesktopClient(null, { platform: 'windows', package: false })" style="border:0; border-radius:12px; padding:12px; background:#0e7490; color:#fff; font-weight:900; cursor:pointer;">下载 Windows 桌面端</button>
                     <button onclick="downloadMacDesktopClient()" style="border:0; border-radius:12px; padding:12px; background:#172033; color:#fff; font-weight:900; cursor:pointer;">下载 macOS DMG</button>
@@ -12368,7 +12369,38 @@ function openDesktopClientModal() {
     }
     document.getElementById('desktopClientWorkspace').value = document.getElementById('recruitWorkspacePath')?.value || '';
     document.getElementById('desktopClientModal').style.display = 'flex';
+    refreshDesktopClientDownloadMeta().catch(() => {});
     refreshDesktopClientStatus().catch(() => {});
+}
+
+function renderDesktopClientDownloadMeta(meta) {
+    const box = document.getElementById('desktopClientMeta');
+    if (!box) return;
+    const windows = meta?.windows || {};
+    const macos = meta?.macos || {};
+    const agentVersion = meta?.agentVersion || windows.version || macos.version || '未知版本';
+    const lines = [
+        `当前 Agent：v${agentVersion}`,
+        `Windows：${windows.sizeText || '大小未知'}，${formatDesktopClientUpdatedAt(windows.updatedAt)}，EXE 首次打开会自动安装并创建快捷方式。`,
+        `macOS：${macos.sizeText || '大小未知'}，${formatDesktopClientUpdatedAt(macos.updatedAt)}，DMG 内含 NiumaClaw Agent.app。`
+    ];
+    if (meta?.fallbackNote) lines.push(meta.fallbackNote);
+    box.innerText = lines.join('\n');
+}
+
+function formatDesktopClientUpdatedAt(value) {
+    if (!value) return '更新时间未知';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '更新时间未知';
+    return '更新 ' + date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+async function refreshDesktopClientDownloadMeta() {
+    const box = document.getElementById('desktopClientMeta');
+    if (box) box.innerText = '正在读取客户端下载信息...';
+    const res = await fetch('/api/downloads/client-metadata', { cache: 'no-store' });
+    if (!res.ok) throw new Error('读取客户端下载信息失败');
+    renderDesktopClientDownloadMeta(await res.json());
 }
 
 async function requestDesktopClientPackage(adapter, workspace, options = {}) {
@@ -12525,7 +12557,7 @@ async function downloadDesktopClient(adapterOverride = null, options = {}) {
                 ? '浏览器下载栏会显示 NiumaClaw macOS Agent DMG。打开镜像后启动 NiumaClaw Agent.app，并保持窗口打开即可接收任务。未公证版本若被 macOS 拦截，仍需要右键打开或完成 Developer ID 签名公证。'
                 : (usePackage
                     ? '浏览器下载栏会显示 NiumaClaw 桌面客户端 zip。解压后在终端执行 chmod +x start-niumaclaw-agent.sh && ./start-niumaclaw-agent.sh。'
-                    : '浏览器下载栏会显示 NiumaClaw-Agent-Windows.exe。双击打开桌面端窗口，保持运行即可接收任务。');
+                    : '浏览器下载栏会显示 NiumaClaw-Agent-Windows.exe。首次双击会自动安装到本机、创建快捷方式，并切换到安装后的桌面客户端。');
             showAppDialog({ title: '下载已开始', message, tone: 'success' });
         }
         return result;

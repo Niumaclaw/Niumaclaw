@@ -4,9 +4,9 @@
     <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <Version>1.0.24</Version>
-    <FileVersion>1.0.24.0</FileVersion>
-    <InformationalVersion>1.0.24+mvp-diagnostics.20260702</InformationalVersion>
+    <Version>1.0.25</Version>
+    <FileVersion>1.0.25.0</FileVersion>
+    <InformationalVersion>1.0.25+commercial-mvp.20260702</InformationalVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 

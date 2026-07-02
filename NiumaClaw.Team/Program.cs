@@ -849,14 +849,7 @@ internal class Program
 
 	private static async Task<byte[]> LoadMacDesktopClientDmgTemplateAsync()
 	{
-		string? text = new string[5]
-		{
-			Path.Combine(AppContext.BaseDirectory, "downloads", MacDesktopClientDmgTemplateFileName),
-			Path.Combine(Environment.CurrentDirectory, "downloads", MacDesktopClientDmgTemplateFileName),
-			Path.Combine(Environment.CurrentDirectory, "NiumaClaw.Team", "downloads", MacDesktopClientDmgTemplateFileName),
-			Path.Combine(GetWorkspaceRootPath(), "downloads", MacDesktopClientDmgTemplateFileName),
-			Path.Combine(GetWorkspaceRootPath(), "NiumaClaw.Team", "downloads", MacDesktopClientDmgTemplateFileName)
-		}.FirstOrDefault(File.Exists);
+		string? text = FindDesktopDownloadFilePath(MacDesktopClientDmgTemplateFileName);
 		if (string.IsNullOrWhiteSpace(text))
 		{
 			throw new FileNotFoundException("macOS client DMG template is missing from the deployment.", MacDesktopClientDmgTemplateFileName);
@@ -866,15 +859,66 @@ internal class Program
 
 		private static async Task<byte[]?> LoadWindowsDesktopClientTemplateExeAsync()
 		{
-			string? text = new string[5]
-			{
-				Path.Combine(AppContext.BaseDirectory, "downloads", WindowsDesktopClientTemplateFileName),
-				Path.Combine(Environment.CurrentDirectory, "downloads", WindowsDesktopClientTemplateFileName),
-				Path.Combine(Environment.CurrentDirectory, "NiumaClaw.Team", "downloads", WindowsDesktopClientTemplateFileName),
-				Path.Combine(GetWorkspaceRootPath(), "downloads", WindowsDesktopClientTemplateFileName),
-				Path.Combine(GetWorkspaceRootPath(), "NiumaClaw.Team", "downloads", WindowsDesktopClientTemplateFileName)
-			}.FirstOrDefault(File.Exists);
+			string? text = FindDesktopDownloadFilePath(WindowsDesktopClientTemplateFileName);
 			return (!string.IsNullOrWhiteSpace(text)) ? (await File.ReadAllBytesAsync(text)) : null;
+		}
+
+		private static string? FindDesktopDownloadFilePath(string fileName)
+		{
+			return new string[5]
+			{
+				Path.Combine(AppContext.BaseDirectory, "downloads", fileName),
+				Path.Combine(Environment.CurrentDirectory, "downloads", fileName),
+				Path.Combine(Environment.CurrentDirectory, "NiumaClaw.Team", "downloads", fileName),
+				Path.Combine(GetWorkspaceRootPath(), "downloads", fileName),
+				Path.Combine(GetWorkspaceRootPath(), "NiumaClaw.Team", "downloads", fileName)
+			}.FirstOrDefault(File.Exists);
+		}
+
+		private static string BuildDesktopClientDownloadMetadataJson()
+		{
+			return "{"
+				+ "\"agentVersion\":\"1.0.7\","
+				+ "\"windows\":" + BuildDownloadMetadataObject(
+					WindowsDesktopClientTemplateFileName,
+					"Windows 桌面端 EXE",
+					"/downloads/niumaclaw-agent-windows.exe",
+					"首次打开会自动安装到本机、创建桌面和开始菜单快捷方式。")
+				+ ",\"macos\":" + BuildDownloadMetadataObject(
+					MacDesktopClientDmgTemplateFileName,
+					"macOS 桌面端 DMG",
+					"/downloads/niumaclaw-macos-agent.dmg",
+					"DMG 内含 NiumaClaw Agent.app，正式发布包需要 Developer ID 签名和公证。")
+				+ ",\"fallbackNote\":\"如果浏览器拦截下载，请允许 niuma.wiki 下载文件；账号专属客户端会重新生成，静态模板仅用于排障。\""
+				+ "}";
+		}
+
+		private static string BuildDownloadMetadataObject(string fileName, string label, string url, string note)
+		{
+			string? path = FindDesktopDownloadFilePath(fileName);
+			bool available = !string.IsNullOrWhiteSpace(path);
+			long sizeBytes = available ? new FileInfo(path!).Length : 0L;
+			string updatedAt = available ? File.GetLastWriteTimeUtc(path!).ToString("O", CultureInfo.InvariantCulture) : string.Empty;
+			return "{"
+				+ "\"available\":" + (available ? "true" : "false") + ","
+				+ "\"label\":" + JsonSerializer.Serialize(label, AppJsonContext.Default.String) + ","
+				+ "\"version\":\"1.0.7\","
+				+ "\"fileName\":" + JsonSerializer.Serialize(fileName, AppJsonContext.Default.String) + ","
+				+ "\"url\":" + JsonSerializer.Serialize(url, AppJsonContext.Default.String) + ","
+				+ "\"sizeBytes\":" + sizeBytes.ToString(CultureInfo.InvariantCulture) + ","
+				+ "\"sizeText\":" + JsonSerializer.Serialize(FormatDownloadSize(sizeBytes), AppJsonContext.Default.String) + ","
+				+ "\"updatedAt\":" + JsonSerializer.Serialize(updatedAt, AppJsonContext.Default.String) + ","
+				+ "\"note\":" + JsonSerializer.Serialize(note, AppJsonContext.Default.String)
+				+ "}";
+		}
+
+		private static string FormatDownloadSize(long bytes)
+		{
+			if (bytes <= 0) return "未生成";
+			decimal mb = bytes / 1024m / 1024m;
+			return mb >= 10m
+				? Math.Round(mb, 0).ToString(CultureInfo.InvariantCulture) + " MB"
+				: Math.Round(mb, 1).ToString(CultureInfo.InvariantCulture) + " MB";
 		}
 
 		private static byte[] AppendDesktopLaunchConfigToExe(byte[] installer, string server, string adapterType, string workspacePath)
@@ -1919,6 +1963,12 @@ internal class Program
 		HttpListenerRequest req = context.Request;
 		HttpListenerResponse res = context.Response;
 		string text = req.Url?.AbsolutePath.ToLowerInvariant() ?? string.Empty;
+		if (text == "/api/downloads/client-metadata" && req.HttpMethod == "GET")
+		{
+			res.Headers["Cache-Control"] = "no-store, no-cache, max-age=0";
+			await WriteJsonAsync(res, BuildDesktopClientDownloadMetadataJson());
+			return true;
+		}
 		if (!IsDatabaseMode)
 		{
 			await WriteJsonAsync(res, "{\"error\":\"database_required\"}", 503);
@@ -3453,7 +3503,7 @@ internal class Program
 			CreatedAt = (job.CreatedAt ?? string.Empty),
 			UpdatedAt = (job.UpdatedAt ?? string.Empty),
 			FinalContent = BuildAgentJobHistoryAssistantContent(job),
-			LastError = (job.Error ?? string.Empty),
+			LastError = HumanizeAgentJobError(job.Error, job.Result),
 			Provider = GetAdapterTypeDisplayName(job.AdapterType),
 			Model = job.AdapterType,
 			TaskId = (job.BoardTaskId ?? string.Empty),
@@ -3507,7 +3557,7 @@ internal class Program
 		}
 		if (status == "failed")
 		{
-			string error = job.Error ?? ExtractAgentFinalContent(job.Result);
+			string error = HumanizeAgentJobError(job.Error, job.Result);
 			return "本机 Agent 执行失败：" + (string.IsNullOrWhiteSpace(error) ? "未知错误" : error.Trim());
 		}
 		if (status == "running" || status == "queued")
@@ -3557,6 +3607,65 @@ internal class Program
 			}
 		}
 		return text;
+	}
+
+	private static string HumanizeAgentJobError(string? rawError, string? output)
+	{
+		string error = rawError?.Trim() ?? string.Empty;
+		string finalOutput = ExtractAgentFinalContent(output);
+		string combined = (error + "\n" + (output ?? string.Empty) + "\n" + finalOutput).ToLowerInvariant();
+
+		if (!string.IsNullOrWhiteSpace(error) && ContainsReadableChinese(error)
+			&& !error.Contains("/bin/bash", StringComparison.OrdinalIgnoreCase)
+			&& !error.Contains("cmd.exe", StringComparison.OrdinalIgnoreCase))
+		{
+			return TrimForDisplay(error, 600);
+		}
+
+		if (combined.Contains("codex", StringComparison.Ordinal) && IsCommandMissingText(combined))
+		{
+			return "找不到 codex 命令。请在本机安装并登录 Codex CLI，安装后重新打开 NiumaClaw Agent。";
+		}
+		if (combined.Contains("claude", StringComparison.Ordinal) && IsCommandMissingText(combined))
+		{
+			return "找不到 claude 命令。请在本机安装并登录 Claude Code CLI，安装后重新打开 NiumaClaw Agent。";
+		}
+		if (combined.Contains("hermes", StringComparison.Ordinal) && IsCommandMissingText(combined))
+		{
+			return "找不到 hermes 命令。请在本机安装 Hermes CLI，或在客户端里配置完整命令后重试。";
+		}
+		if (combined.Contains("timed out", StringComparison.Ordinal) || combined.Contains("timeout", StringComparison.Ordinal))
+		{
+			return "任务超过 30 分钟未完成，已自动停止。请缩小任务范围或拆成更小的步骤后重试。";
+		}
+		if (combined.Contains("401", StringComparison.Ordinal) || combined.Contains("403", StringComparison.Ordinal)
+			|| combined.Contains("unauthorized", StringComparison.Ordinal) || combined.Contains("forbidden", StringComparison.Ordinal))
+		{
+			return "服务器拒绝了客户端 token，请从网页重新下载当前账号专属桌面客户端。";
+		}
+		if (combined.Contains("permission denied", StringComparison.Ordinal) || combined.Contains("access is denied", StringComparison.Ordinal))
+		{
+			return "本机权限不足。请检查工作区是否可读写，或把工作区换到用户目录下的 NiumaClawWorkspace。";
+		}
+		if (Regex.IsMatch(error, "Command exited with code \\d+", RegexOptions.IgnoreCase))
+		{
+			return error + " 常见原因是 CLI 未登录、模型/网络权限不足，或任务里的命令执行失败。请查看运行详情里的终端输出。";
+		}
+
+		string fallback = string.IsNullOrWhiteSpace(error) ? finalOutput : error;
+		return TrimForDisplay(string.IsNullOrWhiteSpace(fallback) ? "任务执行失败，请查看运行详情里的终端输出。" : fallback, 600);
+	}
+
+	private static bool IsCommandMissingText(string text)
+	{
+		return text.Contains("command not found", StringComparison.Ordinal)
+			|| text.Contains("not recognized as an internal or external command", StringComparison.Ordinal)
+			|| text.Contains("no such file or directory", StringComparison.Ordinal);
+	}
+
+	private static bool ContainsReadableChinese(string text)
+	{
+		return text.Any(ch => ch >= '\u4e00' && ch <= '\u9fff');
 	}
 
 	private static string TrimForDisplay(string? text, int maxLength)
@@ -5659,7 +5768,9 @@ internal class Program
 				res.Close();
 				return;
 			}
-			if (path.StartsWith("/api/agent-nodes", StringComparison.OrdinalIgnoreCase) || path.StartsWith("/api/agent-jobs", StringComparison.OrdinalIgnoreCase))
+			if (path.StartsWith("/api/agent-nodes", StringComparison.OrdinalIgnoreCase)
+				|| path.StartsWith("/api/agent-jobs", StringComparison.OrdinalIgnoreCase)
+				|| path == "/api/downloads/client-metadata")
 			{
 				await HandleAgentNodeEndpointAsync(context);
 				res.Close();
