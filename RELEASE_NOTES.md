@@ -1,5 +1,12 @@
 # Release Notes
 
+## v1.0.22 - Desktop CLI Path
+
+### Highlights
+
+- macOS/Windows 桌面 Agent 启动任务前会补齐 Codex、Hermes、Claude Code 常见 CLI 路径，解决双击 App 后 `/bin/bash: codex: command not found`。
+- 派工和绑定时过滤低于 1.0.5 的桌面 Agent，避免 1.0.4 继续接活失败；需要重新下载新版客户端。
+
 ## v1.0.21 - Runner Minimum Version
 
 ### Highlights

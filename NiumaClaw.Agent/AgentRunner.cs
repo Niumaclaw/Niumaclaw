@@ -9,6 +9,8 @@ namespace NiumaClaw.Agent;
 
 internal sealed class AgentRunner
 {
+    private const string AgentVersion = "1.0.5";
+
     private readonly AgentConfig _config;
     private readonly HttpClient _http = new();
 
@@ -37,7 +39,7 @@ internal sealed class AgentRunner
                 await PostJsonAsync("/api/agent-nodes/heartbeat", new
                 AgentHeartbeatRequest(
                     Environment.OSVersion.Platform.ToString(),
-                    "1.0.4",
+                    AgentVersion,
                     Capabilities()),
                     AgentJsonContext.Default.AgentHeartbeatRequest,
                     cancellationToken);
@@ -195,6 +197,7 @@ internal sealed class AgentRunner
             psi.ArgumentList.Add("/c");
             psi.ArgumentList.Add(command);
             ApplyWorkingDirectory(psi, workspace);
+            ApplyRunnerEnvironment(psi);
             return psi;
         }
 
@@ -209,7 +212,91 @@ internal sealed class AgentRunner
         unixPsi.ArgumentList.Add("-lc");
         unixPsi.ArgumentList.Add(command);
         ApplyWorkingDirectory(unixPsi, workspace);
+        ApplyRunnerEnvironment(unixPsi);
         return unixPsi;
+    }
+
+    private static void ApplyRunnerEnvironment(ProcessStartInfo psi)
+    {
+        char separator = OperatingSystem.IsWindows() ? ';' : ':';
+        StringComparer comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        string currentPath = psi.Environment.TryGetValue("PATH", out string? existingPath)
+            ? existingPath ?? string.Empty
+            : Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+
+        List<string> parts = new();
+        HashSet<string> seen = new(comparer);
+        foreach (string path in GetPreferredPathEntries())
+        {
+            AddPathPart(path);
+        }
+
+        foreach (string path in currentPath.Split(separator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            AddPathPart(path);
+        }
+
+        psi.Environment["PATH"] = string.Join(separator, parts);
+
+        void AddPathPart(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            string expanded = Environment.ExpandEnvironmentVariables(value);
+            if (string.IsNullOrWhiteSpace(expanded)) return;
+            if (seen.Add(expanded)) parts.Add(expanded);
+        }
+    }
+
+    private static IEnumerable<string> GetPreferredPathEntries()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+
+            if (!string.IsNullOrWhiteSpace(appData)) yield return Path.Combine(appData, "npm");
+            if (!string.IsNullOrWhiteSpace(localAppData))
+            {
+                yield return Path.Combine(localAppData, "Programs", "Microsoft VS Code", "bin");
+                yield return Path.Combine(localAppData, "Programs", "Cursor", "resources", "app", "bin");
+            }
+
+            if (!string.IsNullOrWhiteSpace(profile))
+            {
+                yield return Path.Combine(profile, ".local", "bin");
+                yield return Path.Combine(profile, ".cargo", "bin");
+            }
+
+            yield break;
+        }
+
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrWhiteSpace(home))
+        {
+            yield return Path.Combine(home, ".local", "bin");
+            yield return Path.Combine(home, ".cargo", "bin");
+            yield return Path.Combine(home, ".npm-global", "bin");
+            yield return Path.Combine(home, ".bun", "bin");
+            yield return Path.Combine(home, ".deno", "bin");
+            yield return Path.Combine(home, ".codex", "bin");
+        }
+
+        yield return "/Applications/Codex.app/Contents/Resources";
+        yield return "/Applications/Codex.app/Contents/MacOS";
+        yield return "/Applications/Hermes.app/Contents/Resources/app/bin";
+        yield return "/Applications/Claude.app/Contents/Resources/app/bin";
+        yield return "/Applications/Claude Code.app/Contents/Resources/app/bin";
+        yield return "/Applications/Cursor.app/Contents/Resources/app/bin";
+        yield return "/Applications/Visual Studio Code.app/Contents/Resources/app/bin";
+        yield return "/opt/homebrew/bin";
+        yield return "/opt/homebrew/sbin";
+        yield return "/usr/local/bin";
+        yield return "/usr/local/sbin";
+        yield return "/usr/bin";
+        yield return "/bin";
+        yield return "/usr/sbin";
+        yield return "/sbin";
     }
 
     private static void ApplyWorkingDirectory(ProcessStartInfo psi, string workspace)
@@ -254,7 +341,7 @@ internal sealed class AgentRunner
         string url = _config.Server.TrimEnd('/') + path;
         using HttpRequestMessage req = new(HttpMethod.Post, url);
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _config.Token);
-        req.Headers.UserAgent.ParseAdd("NiumaClaw-Agent/1.0.4");
+        req.Headers.UserAgent.ParseAdd("NiumaClaw-Agent/" + AgentVersion);
         req.Content = new StringContent(JsonSerializer.Serialize(payload, jsonTypeInfo), Encoding.UTF8, "application/json");
 
         using HttpResponseMessage res = await _http.SendAsync(req, timeoutCts.Token).ConfigureAwait(false);
