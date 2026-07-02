@@ -1,5 +1,13 @@
 # Release Notes
 
+## v1.0.23 - Runner Worklog History
+
+### Highlights
+
+- 本机 Runner 员工的 `/api/history` 现在会从 `agent_jobs` 合成老板任务和员工回复，桌面端完成后网页工作日志不再空白。
+- Codex Runner 的最终结果会优先提取干净回复，避免把 workdir、model、tokens 等 CLI 日志当成主回复展示。
+- 将 Runner 内部 `succeeded` 状态映射为前端工作日志识别的 `completed`，让“已完成”流程和结果标签正常显示。
+
 ## v1.0.22 - Desktop CLI Path
 
 ### Highlights

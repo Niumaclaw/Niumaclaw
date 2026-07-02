@@ -3447,12 +3447,12 @@ internal class Program
 			User = job.EmployeeName,
 			Role = (nodeInfo.Role ?? string.Empty),
 			TaskText = job.Prompt,
-			Status = job.Status,
+			Status = NormalizeAgentJobStatusForUi(job.Status),
 			Origin = "agent-runner",
 			Workspace = (ReadJsonStringFromConfig(nodeInfo.AdapterConfig, "workspacePath") ?? string.Empty),
 			CreatedAt = (job.CreatedAt ?? string.Empty),
 			UpdatedAt = (job.UpdatedAt ?? string.Empty),
-			FinalContent = (job.Result ?? string.Empty),
+			FinalContent = BuildAgentJobHistoryAssistantContent(job),
 			LastError = (job.Error ?? string.Empty),
 			Provider = GetAdapterTypeDisplayName(job.AdapterType),
 			Model = job.AdapterType,
@@ -3462,6 +3462,111 @@ internal class Program
 			PendingApproval = NullJsonElement(),
 			AdapterType = job.AdapterType
 		};
+	}
+
+	private static string SerializeAgentJobHistory(IEnumerable<AgentJobRecord> jobs)
+	{
+		StringBuilder sb = new StringBuilder();
+		sb.Append('[');
+		bool first = true;
+		foreach (AgentJobRecord job in jobs.OrderBy((AgentJobRecord item) => item.Id))
+		{
+			AppendHistoryItem("user", job.Prompt, job.CreatedAt);
+			AppendHistoryItem("assistant", BuildAgentJobHistoryAssistantContent(job), string.IsNullOrWhiteSpace(job.FinishedAt) ? job.UpdatedAt : job.FinishedAt);
+		}
+		sb.Append(']');
+		return sb.ToString();
+
+		void AppendHistoryItem(string role, string? content, string? timestamp)
+		{
+			string text = content?.Trim() ?? string.Empty;
+			if (string.IsNullOrWhiteSpace(text))
+			{
+				return;
+			}
+			if (!first)
+			{
+				sb.Append(',');
+			}
+			first = false;
+			sb.Append('{');
+			sb.Append("\"role\":").Append(JsonSerializer.Serialize(role, AppJsonContext.Default.String)).Append(',');
+			sb.Append("\"content\":").Append(JsonSerializer.Serialize(text, AppJsonContext.Default.String)).Append(',');
+			sb.Append("\"timestamp\":").Append(JsonSerializer.Serialize(timestamp ?? string.Empty, AppJsonContext.Default.String));
+			sb.Append('}');
+		}
+	}
+
+	private static string BuildAgentJobHistoryAssistantContent(AgentJobRecord job)
+	{
+		string status = job.Status ?? string.Empty;
+		if (status == "succeeded")
+		{
+			string finalContent = ExtractAgentFinalContent(job.Result);
+			return string.IsNullOrWhiteSpace(finalContent) ? "本机 Agent 已完成执行。" : finalContent;
+		}
+		if (status == "failed")
+		{
+			string error = job.Error ?? ExtractAgentFinalContent(job.Result);
+			return "本机 Agent 执行失败：" + (string.IsNullOrWhiteSpace(error) ? "未知错误" : error.Trim());
+		}
+		if (status == "running" || status == "queued")
+		{
+			return "本机 Agent 正在处理：" + TrimForDisplay(job.Prompt, 120);
+		}
+		return ExtractAgentFinalContent(job.Result) ?? string.Empty;
+	}
+
+	private static string NormalizeAgentJobStatusForUi(string? status)
+	{
+		return (status ?? string.Empty).Trim().ToLowerInvariant() switch
+		{
+			"succeeded" => "completed",
+			_ => status ?? string.Empty
+		};
+	}
+
+	private static string ExtractAgentFinalContent(string? output)
+	{
+		string text = (output ?? string.Empty).Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
+		if (string.IsNullOrWhiteSpace(text))
+		{
+			return string.Empty;
+		}
+		Match tokensMatch = Regex.Match(text, "(?is)\\btokens used\\s*\\n\\s*[0-9,]+\\s*\\n(?<answer>.+)$");
+		if (tokensMatch.Success)
+		{
+			string answer = tokensMatch.Groups["answer"].Value.Trim();
+			if (!string.IsNullOrWhiteSpace(answer))
+			{
+				return answer;
+			}
+		}
+		int codexMarker = text.LastIndexOf("\ncodex\n", StringComparison.OrdinalIgnoreCase);
+		if (codexMarker >= 0)
+		{
+			string answer = text.Substring(codexMarker + "\ncodex\n".Length).Trim();
+			int tokensIndex = answer.IndexOf("\ntokens used", StringComparison.OrdinalIgnoreCase);
+			if (tokensIndex >= 0)
+			{
+				answer = answer.Substring(0, tokensIndex).Trim();
+			}
+			if (!string.IsNullOrWhiteSpace(answer))
+			{
+				return answer;
+			}
+		}
+		return text;
+	}
+
+	private static string TrimForDisplay(string? text, int maxLength)
+	{
+		string value = text?.Trim() ?? string.Empty;
+		if (value.Length <= maxLength)
+		{
+			return value;
+		}
+		return value.Substring(0, maxLength) + "...";
 	}
 
 	private static string? ReadJsonStringFromConfig(Dictionary<string, JsonElement>? config, string key)
@@ -6766,7 +6871,14 @@ internal class Program
 					}
 					else
 					{
-						await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("[]"));
+						if (path == "/api/history")
+						{
+							await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes(SerializeAgentJobHistory(source2)));
+						}
+						else
+						{
+							await res.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("[]"));
+						}
 					}
 					return;
 				}
