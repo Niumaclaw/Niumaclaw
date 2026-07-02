@@ -979,6 +979,69 @@ internal class Program
 			return PatchMacDesktopClientDmgConfig(template, Base64Utf8(configJson));
 		}
 
+		private static async Task<string> SaveGeneratedDesktopDownloadAsync(byte[] content, string fileName)
+		{
+			string root = GetGeneratedDesktopDownloadRoot();
+			Directory.CreateDirectory(root);
+			CleanupGeneratedDesktopDownloads(root);
+			string token = NewToken().Substring(0, 24);
+			string safeFileName = SafeDownloadFileName(fileName);
+			string directory = Path.Combine(root, token);
+			Directory.CreateDirectory(directory);
+			await File.WriteAllBytesAsync(Path.Combine(directory, safeFileName), content);
+			return "/generated-downloads/" + token + "/" + Uri.EscapeDataString(safeFileName);
+		}
+
+		private static string GetGeneratedDesktopDownloadRoot()
+		{
+			string? configured = Environment.GetEnvironmentVariable("NIUMACLAW_GENERATED_DOWNLOAD_DIR");
+			if (!string.IsNullOrWhiteSpace(configured))
+			{
+				return configured.Trim();
+			}
+			string sharedRoot = "/opt/niumaclaw/shared";
+			return Directory.Exists(sharedRoot)
+				? Path.Combine(sharedRoot, "generated-downloads")
+				: Path.Combine(AppContext.BaseDirectory, "generated-downloads");
+		}
+
+		private static string SafeDownloadFileName(string fileName)
+		{
+			char[] invalid = Path.GetInvalidFileNameChars();
+			StringBuilder builder = new StringBuilder(fileName.Length);
+			foreach (char ch in fileName)
+			{
+				builder.Append(invalid.Contains(ch) ? '-' : ch);
+			}
+			string safe = builder.ToString().Trim();
+			return string.IsNullOrWhiteSpace(safe) ? "NiumaClaw-Agent.bin" : safe;
+		}
+
+		private static void CleanupGeneratedDesktopDownloads(string root)
+		{
+			try
+			{
+				if (!Directory.Exists(root)) return;
+				DateTime cutoff = DateTime.UtcNow.AddHours(-6);
+				foreach (FileSystemInfo item in new DirectoryInfo(root).EnumerateFileSystemInfos())
+				{
+					if (item.LastWriteTimeUtc >= cutoff) continue;
+					if ((item.Attributes & FileAttributes.Directory) == FileAttributes.Directory)
+					{
+						Directory.Delete(item.FullName, recursive: true);
+					}
+					else
+					{
+						File.Delete(item.FullName);
+					}
+				}
+			}
+			catch
+			{
+				// Best-effort cleanup only; a failed cleanup should not block downloads.
+			}
+		}
+
 		private static async Task<byte[]> BuildAgentWindowsDesktopClientExeAsync(string server, string token, long nodeId, string adapterType, string workspacePath, string deviceName)
 		{
 			byte[]? template = await LoadWindowsDesktopClientTemplateExeAsync();
@@ -1914,11 +1977,20 @@ internal class Program
 				"claude" => "Claude-Code",
 				_ => "Codex",
 			};
-			res.ContentType = "application/x-apple-diskimage";
+			string fileName = $"NiumaClaw-{commandName}-macOS-Agent.dmg";
 			res.Headers["Cache-Control"] = "no-store, no-cache, max-age=0";
-			res.Headers["Content-Disposition"] = $"attachment; filename=\"NiumaClaw-{commandName}-macOS-Agent.dmg\"";
 			res.Headers["X-NiumaClaw-Node-Id"] = registered.NodeId.ToString(CultureInfo.InvariantCulture);
 			res.Headers["X-NiumaClaw-Adapter-Type"] = adapterType;
+			if (req.HttpMethod == "GET")
+			{
+				string downloadPath = await SaveGeneratedDesktopDownloadAsync(array, fileName);
+				res.StatusCode = (int)HttpStatusCode.Found;
+				res.RedirectLocation = downloadPath;
+				res.Headers["Location"] = downloadPath;
+				return true;
+			}
+			res.ContentType = "application/x-apple-diskimage";
+			res.Headers["Content-Disposition"] = $"attachment; filename=\"{fileName}\"";
 			res.ContentLength64 = array.Length;
 			await res.OutputStream.WriteAsync(array);
 			return true;
@@ -2014,11 +2086,19 @@ internal class Program
 					await WriteJsonAsync(res, "{\"error\":\"windows_desktop_client_template_missing\"}", 404);
 					return true;
 				}
-				res.ContentType = "application/vnd.microsoft.portable-executable";
 				res.Headers["Cache-Control"] = "no-store, no-cache, max-age=0";
-				res.Headers["Content-Disposition"] = "attachment; filename=\"NiumaClaw-Agent-Windows.exe\"";
 				res.Headers["X-NiumaClaw-Node-Id"] = registered.NodeId.ToString(CultureInfo.InvariantCulture);
 				res.Headers["X-NiumaClaw-Adapter-Type"] = adapterType;
+				if (req.HttpMethod == "GET")
+				{
+					string downloadPath = await SaveGeneratedDesktopDownloadAsync(array2, "NiumaClaw-Agent-Windows.exe");
+					res.StatusCode = (int)HttpStatusCode.Found;
+					res.RedirectLocation = downloadPath;
+					res.Headers["Location"] = downloadPath;
+					return true;
+				}
+				res.ContentType = "application/vnd.microsoft.portable-executable";
+				res.Headers["Content-Disposition"] = "attachment; filename=\"NiumaClaw-Agent-Windows.exe\"";
 				res.ContentLength64 = array2.Length;
 				await res.OutputStream.WriteAsync(array2);
 				return true;
@@ -5587,13 +5667,59 @@ internal class Program
 		await res.OutputStream.WriteAsync(payload);
 	}
 
+	private static async Task<bool> TryServeGeneratedDesktopDownloadAsync(HttpListenerRequest req, HttpListenerResponse res, string requestPath)
+	{
+		const string Prefix = "/generated-downloads/";
+		if (!requestPath.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
+		{
+			return false;
+		}
+		string relativePath = Uri.UnescapeDataString(requestPath[Prefix.Length..]).Replace('\\', '/');
+		string[] pathParts = relativePath.Split('/');
+		if (pathParts.Length < 2 || pathParts.Any(part => string.IsNullOrWhiteSpace(part) || part == "." || part == ".."))
+		{
+			res.StatusCode = 404;
+			return true;
+		}
+		string root = Path.GetFullPath(GetGeneratedDesktopDownloadRoot());
+		string filePath = Path.GetFullPath(Path.Combine(root, Path.Combine(pathParts)));
+		string rootPrefix = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+		if (!filePath.StartsWith(rootPrefix, StringComparison.Ordinal) || !File.Exists(filePath))
+		{
+			res.StatusCode = 404;
+			return true;
+		}
+		FileInfo fileInfo = new FileInfo(filePath);
+		res.ContentType = Path.GetExtension(filePath).ToLowerInvariant() switch
+		{
+			".dmg" => "application/x-apple-diskimage",
+			".exe" => "application/vnd.microsoft.portable-executable",
+			_ => "application/octet-stream"
+		};
+		res.Headers["Cache-Control"] = "no-store, no-cache, max-age=0";
+		res.Headers["Content-Disposition"] = $"attachment; filename=\"{SafeDownloadFileName(fileInfo.Name)}\"";
+		res.ContentLength64 = fileInfo.Length;
+		if (string.Equals(req.HttpMethod, "HEAD", StringComparison.OrdinalIgnoreCase))
+		{
+			return true;
+		}
+		using FileStream fileStream = File.OpenRead(filePath);
+		await fileStream.CopyToAsync(res.OutputStream);
+		return true;
+	}
+
 	private static async Task HandleRequestCoreAsync(HttpListenerContext context)
 	{
 		HttpListenerRequest req = context.Request;
 		HttpListenerResponse res = context.Response;
 		try
 		{
-			string path = req.Url?.AbsolutePath.ToLower() ?? "/";
+			string requestPath = req.Url?.AbsolutePath ?? "/";
+			string path = requestPath.ToLowerInvariant();
+			if (await TryServeGeneratedDesktopDownloadAsync(req, res, requestPath))
+			{
+				return;
+			}
 			string html;
 			switch (path)
 			{

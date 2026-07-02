@@ -1,5 +1,12 @@
 # Release Notes
 
+## v1.0.17 - Static Generated Client Downloads
+
+### Highlights
+
+- 账号专属 macOS/Windows 客户端下载改为先生成到共享静态目录，再重定向给 nginx 直接发送文件，避免应用进程慢速流式输出。
+- 生成文件保留短期有效，并加入应用层兜底下载路由，方便 nginx 配置未生效时仍能取到文件。
+
 ## v1.0.16 - Agent Running State UI
 
 ### Highlights
