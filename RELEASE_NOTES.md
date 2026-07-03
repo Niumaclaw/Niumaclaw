@@ -1,5 +1,15 @@
 # Release Notes
 
+## v1.0.29 - First Launch Wizard
+
+### Highlights
+
+- 桌面 Agent 升级到 `1.0.8`，首次打开显示“配置、诊断、接活”三步向导，不再只露出日志窗口。
+- 启动按钮在不可点击时会显示原因，例如“正在诊断”“先修复诊断”“需重新下载客户端”，减少试用用户误判。
+- 诊断结果新增“下一步”修复建议，失败时优先指出需要处理的配置、服务器、工作区或 CLI 命令。
+- 桌面端 PATH 额外补齐 nvm、Volta、asdf、mise 等 Node/CLI 管理器路径，降低双击 App 后找不到 `codex`、`claude` 的概率。
+- 客户端窗口新增“打开工作区”按钮，便于用户确认任务实际运行目录。
+
 ## v1.0.28 - Download Acceleration Ready
 
 ### Highlights

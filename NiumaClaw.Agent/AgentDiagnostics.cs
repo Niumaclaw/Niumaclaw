@@ -29,6 +29,24 @@ internal sealed class AgentDiagnosticsReport
 
     public bool HasBlockingFailures => Items.Any(item => item.Level == AgentDiagnosticLevel.Fail);
 
+    public string ToNextActionText()
+    {
+        AgentDiagnosticItem? firstFailure = Items.FirstOrDefault(item => item.Level == AgentDiagnosticLevel.Fail);
+        if (firstFailure != null)
+        {
+            string details = string.IsNullOrWhiteSpace(firstFailure.Details) ? string.Empty : Environment.NewLine + firstFailure.Details.Trim();
+            return $"下一步：先处理「{firstFailure.Name}」。{firstFailure.Message}{details}";
+        }
+
+        int warningCount = Items.Count(item => item.Level == AgentDiagnosticLevel.Warning);
+        if (warningCount > 0)
+        {
+            return $"可以启动 Agent。当前有 {warningCount} 个非阻塞提醒，编码/构建类任务前建议补齐这些工具。";
+        }
+
+        return "环境诊断通过。保持本窗口打开，然后回到网页端给已绑定员工派任务。";
+    }
+
     public string ToDisplayText()
     {
         StringBuilder sb = new();
@@ -175,10 +193,10 @@ internal static class AgentDiagnostics
         {
             string installHint = commandName.ToLowerInvariant() switch
             {
-                "codex" => "请先安装并登录 Codex CLI，或确认 /Applications/Codex.app/Contents/Resources 在 PATH 中。",
-                "claude" => "请先安装并登录 Claude Code CLI。",
+                "codex" => "请先在终端确认 `codex --version` 可用并已登录。若终端可用但桌面端找不到，重新打开客户端，或用 NIUMACLAW_RUNNER_COMMAND_TEMPLATE 配置完整 codex 路径。",
+                "claude" => "请先在终端确认 `claude --version` 可用并已登录。若终端可用但桌面端找不到，重新打开客户端，或用 NIUMACLAW_RUNNER_COMMAND_TEMPLATE 配置完整 claude 路径。",
                 "hermes" => "请先安装 Hermes CLI，或在 NIUMACLAW_RUNNER_COMMAND_TEMPLATE 中配置完整命令。",
-                _ => "请安装该命令，或通过 NIUMACLAW_RUNNER_COMMAND_TEMPLATE 配置完整命令。"
+                _ => "请先安装该 CLI，或通过 NIUMACLAW_RUNNER_COMMAND_TEMPLATE 配置完整命令。"
             };
             return Fail("Agent 命令", $"找不到 `{commandName}`，启动后无法执行任务。", installHint);
         }

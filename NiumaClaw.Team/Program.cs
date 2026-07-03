@@ -906,7 +906,7 @@ internal class Program
 		private static string BuildDesktopClientDownloadMetadataJson()
 		{
 			return "{"
-				+ "\"agentVersion\":\"1.0.7\","
+				+ "\"agentVersion\":\"1.0.8\","
 				+ "\"downloadDelivery\":" + BuildDownloadDeliveryMetadataObject() + ","
 				+ "\"windows\":" + BuildDownloadMetadataObject(
 					WindowsDesktopClientTemplateFileName,
@@ -932,7 +932,7 @@ internal class Program
 			return "{"
 				+ "\"available\":" + (available ? "true" : "false") + ","
 				+ "\"label\":" + JsonSerializer.Serialize(label, AppJsonContext.Default.String) + ","
-				+ "\"version\":\"1.0.7\","
+				+ "\"version\":\"1.0.8\","
 				+ "\"fileName\":" + JsonSerializer.Serialize(fileName, AppJsonContext.Default.String) + ","
 				+ "\"url\":" + JsonSerializer.Serialize(publicUrl, AppJsonContext.Default.String) + ","
 				+ "\"path\":" + JsonSerializer.Serialize(url, AppJsonContext.Default.String) + ","

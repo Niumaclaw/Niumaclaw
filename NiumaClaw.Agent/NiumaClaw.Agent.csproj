@@ -3,9 +3,9 @@
     <AssemblyName>NiumaClaw.Agent</AssemblyName>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <Version>1.0.7</Version>
-    <FileVersion>1.0.7.0</FileVersion>
-    <InformationalVersion>1.0.7+commercial-mvp.20260702</InformationalVersion>
+    <Version>1.0.8</Version>
+    <FileVersion>1.0.8.0</FileVersion>
+    <InformationalVersion>1.0.8+first-launch-wizard.20260703</InformationalVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PublishSingleFile>true</PublishSingleFile>

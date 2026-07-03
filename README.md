@@ -7,7 +7,7 @@
 <p align="center">
   <img alt=".NET" src="https://img.shields.io/badge/.NET-10.0-512BD4">
   <img alt="AOT" src="https://img.shields.io/badge/AOT-Native-7C3AED">
-  <img alt="Platform" src="https://img.shields.io/badge/Platform-Windows-0078D4">
+  <img alt="Platform" src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-0078D4">
   <img alt="Agent" src="https://img.shields.io/badge/Multi--Agent-Control%20Desk-16A34A">
   <img alt="License" src="https://img.shields.io/badge/License-MIT-green">
 </p>
@@ -47,6 +47,7 @@ http://localhost:4050/
 - [Codex CLI 安装与登录说明](docs/CODEX_CLI_SETUP.md)
 - [常见问题](docs/FAQ.md)
 - [下载加速部署说明](docs/DOWNLOAD_ACCELERATION.md)
+- 桌面端首次打开会显示配置、环境诊断和接活状态，并在失败时给出下一步修复建议。
 
 ## 参与项目
 

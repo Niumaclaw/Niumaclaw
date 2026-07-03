@@ -9,7 +9,7 @@ namespace NiumaClaw.Agent;
 
 internal sealed class AgentRunner
 {
-    internal const string AgentVersion = "1.0.7";
+    internal const string AgentVersion = "1.0.8";
 
     private readonly AgentConfig _config;
     private readonly HttpClient _http = new();
@@ -345,6 +345,14 @@ internal sealed class AgentRunner
             yield return Path.Combine(home, ".local", "bin");
             yield return Path.Combine(home, ".cargo", "bin");
             yield return Path.Combine(home, ".npm-global", "bin");
+            yield return Path.Combine(home, ".volta", "bin");
+            yield return Path.Combine(home, ".asdf", "shims");
+            yield return Path.Combine(home, ".local", "share", "mise", "shims");
+            yield return Path.Combine(home, ".nvm", "current", "bin");
+            foreach (string nvmBin in EnumerateNvmNodeBins(home))
+            {
+                yield return nvmBin;
+            }
             yield return Path.Combine(home, ".bun", "bin");
             yield return Path.Combine(home, ".deno", "bin");
             yield return Path.Combine(home, ".codex", "bin");
@@ -365,6 +373,31 @@ internal sealed class AgentRunner
         yield return "/bin";
         yield return "/usr/sbin";
         yield return "/sbin";
+    }
+
+    private static IEnumerable<string> EnumerateNvmNodeBins(string home)
+    {
+        string nvmVersions = Path.Combine(home, ".nvm", "versions", "node");
+        if (!Directory.Exists(nvmVersions)) yield break;
+
+        IEnumerable<DirectoryInfo> versions;
+        try
+        {
+            versions = new DirectoryInfo(nvmVersions)
+                .EnumerateDirectories()
+                .OrderByDescending(dir => dir.LastWriteTimeUtc)
+                .Take(8)
+                .ToArray();
+        }
+        catch
+        {
+            yield break;
+        }
+
+        foreach (DirectoryInfo version in versions)
+        {
+            yield return Path.Combine(version.FullName, "bin");
+        }
     }
 
     private static void ApplyWorkingDirectory(ProcessStartInfo psi, string workspace)
